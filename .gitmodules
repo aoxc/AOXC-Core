@@ -1,0 +1,17 @@
+# ==============================================================================
+# AOXC PROTOCOL - SUBMODULE SPECIFICATION
+# Purpose: Management of external cryptographic and testing frameworks.
+# Version: 1.0.0
+# ==============================================================================
+
+[submodule "lib/forge-std"]
+    # Testing & Development Framework: The industrial engine for verification.
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+    branch = master
+
+[submodule "lib/openzeppelin-contracts"]
+	# Standard Library for Secure Smart Contracts: Future-proofing the Sovereign Fleet.
+	path = lib/openzeppelin-contracts
+	url = https://github.com/openzeppelin/openzeppelin-contracts
+    branch = v5.0.0

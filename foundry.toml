@@ -1,0 +1,67 @@
+[profile.default]
+# --- Project Layout ---
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+script = "script"
+
+# --- Compiler Configuration ---
+solc_version = "0.8.28"
+optimizer = true
+optimizer_runs = 1000
+via_ir = true
+# Targeted EVM: Cancun (Supports MCOPY for improved efficiency on modern L2s/Mainnet)
+evm_version = "cancun"
+
+# --- Metadata & Output Analysis ---
+# Necessary for auditing and upgrade safety checks
+extra_output = [
+    "abi",
+    "evm.bytecode",
+    "evm.deployedBytecode",
+    "evm.methodIdentifiers",
+    "metadata",
+    "storageLayout" # Critical for UUPS upgrade compatibility audits
+]
+
+# --- Advanced Testing Strategies ---
+[fuzz]
+# Fuzz testing to identify edge cases in transfer limits and roles
+runs = 1000 
+seed = '0x31337'
+
+[invariant]
+# Invariant testing to ensure AOXC state remains consistent under all conditions
+runs = 500
+depth = 15
+
+# --- Coverage Configuration (The Fix) ---
+# We create a specific profile for coverage to ensure 100% branch visibility
+[profile.ci]
+optimizer = false
+via_ir = false
+
+# --- Dependency Management ---
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
+    "openzeppelin-contracts/=lib/openzeppelin-contracts/",
+    "openzeppelin-contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/",
+    "forge-std/=lib/forge-std/src/"
+]
+
+# --- Infrastructure & Connectivity ---
+[rpc_endpoints]
+xlayer_mainnet = "https://rpc.xlayer.tech"
+xlayer_testnet = "https://testnet.xlayer.tech/rpc"
+
+[etherscan]
+# Automated verification on OKLink Explorer
+xlayer = { key = "${OKLINK_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/xlayer" }
+xlayer_testnet = { key = "${OKLINK_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/xlayer" }
+
+# --- Documentation Generation (NatSpec) ---
+[doc]
+title = "AOXC Protocol Documentation"
+repository = "https://github.com/orcun/AOXCProject"

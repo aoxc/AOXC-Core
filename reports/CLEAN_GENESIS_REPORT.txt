@@ -1,0 +1,34 @@
+No files changed, compilation skipped
+
+Ran 5 tests for test/AOXC.t.sol:AOXCTest
+[PASS] test01InitialStateVerification() (gas: 20459)
+[PASS] test02BlacklistEnforcement() (gas: 137748)
+[PASS] test03TransferVelocityLimits() (gas: 76164)
+[PASS] test04YearlyInflationCap() (gas: 100427)
+[PASS] test05SuccessfulUpgradeVerification() (gas: 4182571)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 2.83ms (1.38ms CPU time)
+
+Ran 9 tests for test/AOXC_Security.t.sol:AOXCSecurityTest
+[PASS] test01InitialStateVerification() (gas: 20481)
+[PASS] test02BlacklistEnforcement() (gas: 137768)
+[PASS] test03TransferVelocityLimits() (gas: 76186)
+[PASS] test04YearlyInflationCap() (gas: 100449)
+[PASS] test05SuccessfulUpgradeVerification() (gas: 4182593)
+[PASS] testSecurityComplianceEnforcementOnUsers() (gas: 78131)
+[PASS] testSecurityExploitReinitializationAttempt() (gas: 18745)
+[PASS] testSecurityImplementationContractLockdown() (gas: 14183)
+[PASS] testSecurityPrivilegeEscalationComplianceCannotMint() (gas: 21592)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 3.36ms (1.89ms CPU time)
+
+Ran 8 tests for test/AOXC_Limits.t.sol:AOXCLimitsTest
+[PASS] test01InitialStateVerification() (gas: 20481)
+[PASS] test02BlacklistEnforcement() (gas: 137783)
+[PASS] test03TransferVelocityLimits() (gas: 76205)
+[PASS] test04YearlyInflationCap() (gas: 100480)
+[PASS] test05SuccessfulUpgradeVerification() (gas: 4182593)
+[PASS] testFuzzVelocityLimitInvariance(uint256) (runs: 1000, μ: 111328, ~: 111337)
+[PASS] testLimitsTemporalInflationCap() (gas: 114948)
+[PASS] testLimitsVelocityDailyWindow() (gas: 132787)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 146.94ms (146.23ms CPU time)
+
+Ran 3 test suites in 151.30ms (153.13ms CPU time): 22 tests passed, 0 failed, 0 skipped (22 total tests)

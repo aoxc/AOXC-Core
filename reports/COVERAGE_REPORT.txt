@@ -1,0 +1,48 @@
+Compiling 71 files with Solc 0.8.28
+Solc 0.8.28 finished in 1.49s
+Compiler run successful!
+Analysing contracts...
+Running tests...
+
+Ran 9 tests for test/AOXC_Security.t.sol:AOXCSecurityTest
+[PASS] test01InitialStateVerification() (gas: 21353)
+[PASS] test02BlacklistEnforcement() (gas: 144645)
+[PASS] test03TransferVelocityLimits() (gas: 77661)
+[PASS] test04YearlyInflationCap() (gas: 105030)
+[PASS] test05SuccessfulUpgradeVerification() (gas: 5835382)
+[PASS] testSecurityComplianceEnforcementOnUsers() (gas: 79811)
+[PASS] testSecurityExploitReinitializationAttempt() (gas: 18595)
+[PASS] testSecurityImplementationContractLockdown() (gas: 13577)
+[PASS] testSecurityPrivilegeEscalationComplianceCannotMint() (gas: 22157)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 11.78ms (9.07ms CPU time)
+
+Ran 5 tests for test/AOXC.t.sol:AOXCTest
+[PASS] test01InitialStateVerification() (gas: 21330)
+[PASS] test02BlacklistEnforcement() (gas: 144689)
+[PASS] test03TransferVelocityLimits() (gas: 77683)
+[PASS] test04YearlyInflationCap() (gas: 105029)
+[PASS] test05SuccessfulUpgradeVerification() (gas: 5835337)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 295.30ms (10.49ms CPU time)
+
+Ran 8 tests for test/AOXC_Limits.t.sol:AOXCLimitsTest
+[PASS] test01InitialStateVerification() (gas: 21353)
+[PASS] test02BlacklistEnforcement() (gas: 144667)
+[PASS] test03TransferVelocityLimits() (gas: 77661)
+[PASS] test04YearlyInflationCap() (gas: 105052)
+[PASS] test05SuccessfulUpgradeVerification() (gas: 5835382)
+[PASS] testFuzzVelocityLimitInvariance(uint256) (runs: 1000, μ: 116562, ~: 116648)
+[PASS] testLimitsTemporalInflationCap() (gas: 125482)
+[PASS] testLimitsVelocityDailyWindow() (gas: 138388)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 295.38ms (303.53ms CPU time)
+
+Ran 3 test suites in 296.74ms (602.47ms CPU time): 22 tests passed, 0 failed, 0 skipped (22 total tests)
+
+╭-------------------------+----------------+----------------+----------------+---------------╮
+| File                    | % Lines        | % Statements   | % Branches     | % Funcs       |
++============================================================================================+
+| script/DeployAOXC.s.sol | 0.00% (0/24)   | 0.00% (0/26)   | 100.00% (0/0)  | 0.00% (0/2)   |
+|-------------------------+----------------+----------------+----------------+---------------|
+| src/AOXC.sol            | 75.71% (53/70) | 78.26% (54/69) | 66.67% (18/27) | 57.14% (8/14) |
+|-------------------------+----------------+----------------+----------------+---------------|
+| Total                   | 56.38% (53/94) | 56.84% (54/95) | 66.67% (18/27) | 50.00% (8/16) |
+╰-------------------------+----------------+----------------+----------------+---------------╯
