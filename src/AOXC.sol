@@ -2,24 +2,33 @@
 pragma solidity 0.8.33;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC20BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
-import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
-import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
-import {ERC20VotesUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
+import {
+    ERC20BurnableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
+import {
+    ERC20PausableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {
+    ERC20PermitUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import {
+    ERC20VotesUpgradeable
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
 import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /**
- * @title AOXC Sovereign Token
- * @notice Enterprise-grade UUPS Token for X Layer. 
- * @dev Supports 100+ chains via Bridge-specific velocity exceptions and DAO-governed monetary policy.
+ * @title AOXC Sovereign Token V2
+ * @author AOXC Core Team
+ * @notice Professional-grade UUPS Token with Integrated Governance, Compliance, and Tax logic.
+ * @dev Optimized for X Layer. All critical state changes are intended for DAO Timelock execution.
  */
 contract AOXC is
     Initializable,
+    ContextUpgradeable,
     ERC20Upgradeable,
     ERC20BurnableUpgradeable,
     ERC20PausableUpgradeable,
@@ -28,64 +37,62 @@ contract AOXC is
     ERC20VotesUpgradeable,
     UUPSUpgradeable
 {
-    using SafeERC20 for IERC20;
-
-    // --- ROLES ---
-    bytes32 public constant PAUSER_ROLE     = keccak256("PAUSER_ROLE");
-    bytes32 public constant MINTER_ROLE     = keccak256("MINTER_ROLE");
-    bytes32 public constant UPGRADER_ROLE   = keccak256("UPGRADER_ROLE");
+    // --- ROLES (DAO Managed) ---
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant COMPLIANCE_ROLE = keccak256("COMPLIANCE_ROLE");
     bytes32 public constant GOVERNANCE_ROLE = keccak256("GOVERNANCE_ROLE");
-    bytes32 public constant BRIDGE_ROLE     = keccak256("BRIDGE_ROLE"); // For 100-channel liquidity
 
-    // --- MONETARY CONSTANTS ---
-    uint256 public constant INITIAL_SUPPLY  = 100_000_000_000e18;
-    uint256 public constant GLOBAL_CAP      = 300_000_000_000e18;
-    uint256 public constant MAX_TAX_BPS     = 1_000; // Max 10%
+    // --- IMMUTABLE CONSTANTS ---
+    uint256 public constant GLOBAL_CAP = 300_000_000_000 * 1e18;
     uint256 private constant BPS_DENOMINATOR = 10_000;
-    uint256 public constant YEAR_SECONDS    = 365 days;
 
-    // --- STATE VARIABLES (STRICT STORAGE ORDER) ---
-    uint256 public yearlyMintLimit;
-    uint256 public mintedThisYear;
-    uint256 public lastMintTimestamp;
-    uint256 public maxTransferAmount;
-    uint256 public dailyTransferLimit;
+    // --- STRUCTURED STATE ---
+    struct ProtocolState {
+        uint256 yearlyMintLimit;
+        uint256 mintedThisYear;
+        uint256 lastMintTimestamp;
+        uint256 maxTransferAmount;
+        uint256 dailyTransferLimit;
+        uint256 taxBps;
+        address treasury;
+        bool taxEnabled;
+        bool emergencyBypass; // Master switch for DAO to disable all restrictions
+    }
 
-    uint256 public taxBasisPoints;
-    bool public taxEnabled;
-    address public treasury;
+    ProtocolState public state;
 
     mapping(address => bool) private _blacklisted;
     mapping(address => string) public blacklistReason;
-    mapping(address => bool) public isExcludedFromLimits;
+    mapping(address => uint256) public userLockUntil;
+    mapping(address => bool) public isExempt; // Exempt from Tax & Velocity limits
     mapping(address => uint256) public dailySpent;
     mapping(address => uint256) public lastTransferDay;
-    mapping(address => uint256) public userLockUntil;
 
-    // --- ERRORS ---
+    // --- CUSTOM ERRORS (Audit Optimized) ---
     error AOXC_ZeroAddress();
     error AOXC_GlobalCapExceeded();
     error AOXC_InflationLimitReached();
-    error AOXC_TaxTooHigh();
-    error AOXC_MaxTxExceeded();
-    error AOXC_DailyLimitExceeded();
-    error AOXC_AccountBlacklisted(address account);
-    error AOXC_AccountLocked(address account, uint256 until);
-    error AOXC_Unauthorized();
+    error AOXC_TransferRestricted(address account);
+    error AOXC_VelocityLimitReached();
+    error AOXC_UnauthorizedAction();
+    error AOXC_TaxRateTooHigh();
 
     // --- EVENTS ---
-    event Blacklisted(address indexed account, string reason);
-    event Unblacklisted(address indexed account);
-    event UserLocked(address indexed account, uint256 until);
-    event TaxConfigured(uint256 bps, bool enabled, address treasury);
-    event VelocityUpdated(uint256 maxTx, uint256 dailyLimit);
+    event ComplianceAction(address indexed account, bool blacklisted, uint256 lockedUntil);
+    event ProtocolStateUpdated(uint256 taxBps, bool taxEnabled, address treasury);
+    event ExemptionUpdated(address indexed account, bool status);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
 
+    /**
+     * @notice Proxy initializer
+     * @param governor The address of the DAO Timelock or Multisig
+     */
     function initialize(address governor) external initializer {
         if (governor == address(0)) revert AOXC_ZeroAddress();
 
@@ -95,7 +102,6 @@ contract AOXC is
         __AccessControl_init();
         __ERC20Permit_init("AOXC Token");
         __ERC20Votes_init();
-        __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, governor);
         _grantRole(GOVERNANCE_ROLE, governor);
@@ -104,17 +110,63 @@ contract AOXC is
         _grantRole(UPGRADER_ROLE, governor);
         _grantRole(COMPLIANCE_ROLE, governor);
 
-        // Audit-Grade Default Limits
-        maxTransferAmount = 1_000_000_000e18; 
-        dailyTransferLimit = 2_000_000_000e18;
-        yearlyMintLimit = (INITIAL_SUPPLY * 600) / BPS_DENOMINATOR; // 6%
+        // Initial Configuration
+        state.maxTransferAmount = 1_000_000_000 * 1e18;
+        state.dailyTransferLimit = 2_000_000_000 * 1e18;
+        state.lastMintTimestamp = block.timestamp;
+        state.treasury = governor;
+        state.yearlyMintLimit = (100_000_000_000 * 1e18 * 600) / BPS_DENOMINATOR; // 6%
 
-        lastMintTimestamp = block.timestamp;
-        isExcludedFromLimits[governor] = true;
-        isExcludedFromLimits[address(this)] = true;
-        treasury = governor;
+        isExempt[governor] = true;
+        isExempt[address(this)] = true;
 
-        _mint(governor, INITIAL_SUPPLY);
+        _mint(governor, 100_000_000_000 * 1e18);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            INTERNAL ENGINE
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @dev Core transfer logic with hooks for security and tax.
+     */
+    function _update(address from, address to, uint256 val)
+        internal
+        override(ERC20Upgradeable, ERC20PausableUpgradeable, ERC20VotesUpgradeable)
+    {
+        // 1. IMMUNITY SYSTEM: Bypass all logic for Mint/Burn/Exempt/Emergency
+        if (from == address(0) || to == address(0) || isExempt[from] || state.emergencyBypass) {
+            super._update(from, to, val);
+            return;
+        }
+
+        // 2. COMPLIANCE CHECK
+        if (_blacklisted[from] || block.timestamp < userLockUntil[from]) revert AOXC_TransferRestricted(from);
+        if (_blacklisted[to]) revert AOXC_TransferRestricted(to);
+
+        // 3. VELOCITY LIMITS (Anti-Whale / Anti-Bot)
+        if (val > state.maxTransferAmount) revert AOXC_VelocityLimitReached();
+
+        uint256 day = block.timestamp / 1 days;
+        if (lastTransferDay[from] != day) {
+            lastTransferDay[from] = day;
+            dailySpent[from] = 0;
+        }
+        if (dailySpent[from] + val > state.dailyTransferLimit) revert AOXC_VelocityLimitReached();
+        dailySpent[from] += val;
+
+        // 4. TAX MOTOR
+        uint256 finalAmount = val;
+        if (state.taxEnabled && state.taxBps > 0) {
+            uint256 tax = (val * state.taxBps) / BPS_DENOMINATOR;
+            if (tax > 0) {
+                finalAmount = val - tax;
+                // Direct update to treasury to avoid recursive hook triggers
+                super._update(from, state.treasury, tax);
+            }
+        }
+
+        super._update(from, to, finalAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -123,102 +175,87 @@ contract AOXC is
 
     function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) whenNotPaused {
         if (to == address(0)) revert AOXC_ZeroAddress();
-        if (_blacklisted[to]) revert AOXC_AccountBlacklisted(to);
         if (totalSupply() + amount > GLOBAL_CAP) revert AOXC_GlobalCapExceeded();
 
-        // Compounding Inflation Logic
-        if (block.timestamp >= lastMintTimestamp + YEAR_SECONDS) {
-            mintedThisYear = 0;
-            lastMintTimestamp = block.timestamp;
-            yearlyMintLimit = (totalSupply() * 600) / BPS_DENOMINATOR;
+        // Dynamic Inflation Adjustment (Yearly reset)
+        if (block.timestamp >= state.lastMintTimestamp + 365 days) {
+            state.mintedThisYear = 0;
+            state.lastMintTimestamp = block.timestamp;
+            // Yearly limit is 6% of the current supply
+            state.yearlyMintLimit = (totalSupply() * 600) / BPS_DENOMINATOR;
         }
 
-        if (mintedThisYear + amount > yearlyMintLimit) revert AOXC_InflationLimitReached();
+        if (state.mintedThisYear + amount > state.yearlyMintLimit) revert AOXC_InflationLimitReached();
 
-        mintedThisYear += amount;
+        state.mintedThisYear += amount;
         _mint(to, amount);
     }
 
     /*//////////////////////////////////////////////////////////////
-                            COMPLIANCE LOGIC
+                            ADMIN & GOVERNANCE
     //////////////////////////////////////////////////////////////*/
 
-    function addToBlacklist(address user, string calldata reason) external onlyRole(COMPLIANCE_ROLE) {
-        if (hasRole(DEFAULT_ADMIN_ROLE, user)) revert AOXC_Unauthorized();
-        _blacklisted[user] = true;
-        blacklistReason[user] = reason;
-        emit Blacklisted(user, reason);
-    }
-
-    function lockUserFunds(address user, uint256 duration) external onlyRole(COMPLIANCE_ROLE) {
-        userLockUntil[user] = block.timestamp + duration;
-        emit UserLocked(user, userLockUntil[user]);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                            INTERNAL ENGINE
-    //////////////////////////////////////////////////////////////*/
-
-    function _update(address from, address to, uint256 value)
-        internal
-        override(ERC20Upgradeable, ERC20PausableUpgradeable, ERC20VotesUpgradeable)
+    function updateProtocolConfig(uint256 _tax, bool _taxEnabled, address _treasury, bool _bypass)
+        external
+        onlyRole(GOVERNANCE_ROLE)
     {
-        // 1. Compliance Layer
-        if (from != address(0)) {
-            if (_blacklisted[from]) revert AOXC_AccountBlacklisted(from);
-            if (block.timestamp < userLockUntil[from]) revert AOXC_AccountLocked(from, userLockUntil[from]);
-        }
-        if (to != address(0) && _blacklisted[to]) revert AOXC_AccountBlacklisted(to);
+        if (_tax > 1000) revert AOXC_TaxRateTooHigh(); // Hard cap 10%
+        if (_treasury == address(0)) revert AOXC_ZeroAddress();
 
-        uint256 finalAmount = value;
+        state.taxBps = _tax;
+        state.taxEnabled = _taxEnabled;
+        state.treasury = _treasury;
+        state.emergencyBypass = _bypass;
 
-        // 2. Velocity & Tax Layer (Skip for Authorized Bridges & Admin)
-        if (from != address(0) && to != address(0) && !isExcludedFromLimits[from] && !hasRole(BRIDGE_ROLE, from)) {
-            // Velocity Checks
-            if (value > maxTransferAmount) revert AOXC_MaxTxExceeded();
-            
-            uint256 day = block.timestamp / 1 days;
-            if (lastTransferDay[from] != day) {
-                lastTransferDay[from] = day;
-                dailySpent[from] = 0;
-            }
-            if (dailySpent[from] + value > dailyTransferLimit) revert AOXC_DailyLimitExceeded();
-            dailySpent[from] += value;
-
-            // Tax logic
-            if (taxEnabled && taxBasisPoints > 0) {
-                uint256 tax = (value * taxBasisPoints) / BPS_DENOMINATOR;
-                if (tax > 0) {
-                    finalAmount = value - tax;
-                    super._update(from, treasury, tax);
-                }
-            }
-        }
-
-        super._update(from, to, finalAmount);
+        emit ProtocolStateUpdated(_tax, _taxEnabled, _treasury);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                            ADMIN FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
+    function updateCompliance(address user, bool blacklisted, string calldata reason, uint256 lockDuration)
+        external
+        onlyRole(COMPLIANCE_ROLE)
+    {
+        if (hasRole(DEFAULT_ADMIN_ROLE, user)) revert AOXC_UnauthorizedAction();
 
-    function configureTax(uint256 bps, bool enabled, address _treasury) external onlyRole(GOVERNANCE_ROLE) {
-        if (bps > MAX_TAX_BPS) revert AOXC_TaxTooHigh();
-        taxBasisPoints = bps;
-        taxEnabled = enabled;
-        treasury = _treasury;
-        emit TaxConfigured(bps, enabled, _treasury);
+        _blacklisted[user] = blacklisted;
+        blacklistReason[user] = reason;
+
+        if (lockDuration > 0) {
+            userLockUntil[user] = block.timestamp + lockDuration;
+        } else {
+            userLockUntil[user] = 0;
+        }
+
+        emit ComplianceAction(user, blacklisted, userLockUntil[user]);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
+    function setExemption(address account, bool status) external onlyRole(GOVERNANCE_ROLE) {
+        isExempt[account] = status;
+        emit ExemptionUpdated(account, status);
+    }
 
-    // Governance Clock
-    function clock() public view override returns (uint48) { return uint48(block.timestamp); }
-    function CLOCK_MODE() public pure override returns (string memory) { return "mode=timestamp"; }
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(PAUSER_ROLE) {
+        _unpause();
+    }
+
+    function _authorizeUpgrade(address newImpl) internal override onlyRole(UPGRADER_ROLE) {}
+
+    // Governance/Voting Overrides
+    function clock() public view override returns (uint48) {
+        return uint48(block.timestamp);
+    }
+
+    function CLOCK_MODE() public pure override returns (string memory) {
+        return "mode=timestamp";
+    }
 
     function nonces(address owner) public view override(ERC20PermitUpgradeable, NoncesUpgradeable) returns (uint256) {
         return super.nonces(owner);
     }
 
-    uint256[40] private _gap; // Storage gap for future expansion
+    // Storage Gap for 100% safe future upgrades
+    uint256[42] private __gap;
 }

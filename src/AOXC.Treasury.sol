@@ -1,52 +1,63 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-// Senin tree yapına göre güncellenmiş yollar
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyMockUpgradeable.sol"; // ReentrancyGuard ağacında mock/utils arasında olabilir, standart yolu budur
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {
+    ReentrancyGuardUpgradeable
+} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /**
- * @title AOXC Secure Treasury
- * @notice 6-year base lock + Recurring 1-year windows + 6% Yearly Withdrawal Limit.
+ * @title AOXC Sovereign Treasury V2
+ * @notice Advanced vault with 6-year cliff and 6% annual rolling limits.
+ * @dev Optimized with OZ v5 Transient Storage for gas efficiency and DAO alignment.
  */
-contract AOXCTreasury is Initializable, AccessControlUpgradeable, PausableUpgradeable, UUPSUpgradeable {
+contract AOXCTreasury is
+    Initializable,
+    AccessControlUpgradeable,
+    PausableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    UUPSUpgradeable
+{
     using SafeERC20 for IERC20;
 
-    /*//////////////////////////////////////////////////////////////
-                                 CONSTANTS
-    //////////////////////////////////////////////////////////////*/
+    // --- ROLES ---
     bytes32 public constant GOVERNANCE_ROLE = keccak256("GOVERNANCE_ROLE");
     bytes32 public constant EMERGENCY_ROLE = keccak256("EMERGENCY_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
-    uint256 public constant INITIAL_LOCK_DURATION = 6 * 365 days;
-    uint256 public constant RECURRING_WINDOW = 365 days;
-    uint256 public constant MAX_WITHDRAWAL_BPS = 600; // %6
-    uint256 public constant BPS_DENOMINATOR = 10_000;
+    // --- CONSTANTS ---
+    uint256 public constant INITIAL_LOCK_DURATION = 2190 days; // 6 Years
+    uint256 public constant SPENDING_WINDOW = 365 days;
+    uint256 public constant MAX_WITHDRAWAL_BPS = 600; // 6%
+    uint256 private constant BPS_DENOMINATOR = 10_000;
 
-    /*//////////////////////////////////////////////////////////////
-                                   STATE
-    //////////////////////////////////////////////////////////////*/
+    // --- STATE ---
     uint256 public initialUnlockTimestamp;
+    uint256 public currentWindowId;
     uint256 public currentWindowEnd;
     bool public emergencyMode;
 
-    mapping(address => uint256) public periodWithdrawn;
-    mapping(address => uint256) public periodStartBalance;
+    struct WindowAccounting {
+        uint256 startBalance;
+        uint256 withdrawn;
+    }
 
-    error Treasury_ZeroAddress();
-    error Treasury_VaultLocked(uint256 current, uint256 unlockTime);
-    error Treasury_WindowClosed();
-    error Treasury_ExceedsSixPercentLimit();
-    error Treasury_TransferFailed();
+    // Token => WindowId => Accounting
+    mapping(address => mapping(uint256 => WindowAccounting)) public windowStates;
 
-    event WindowOpened(uint256 windowEnd);
-    event EmergencyModeToggled(bool status);
+    // --- ERRORS ---
+    error AOXC_Vault_Locked(uint256 current, uint256 unlockAt);
+    error AOXC_Vault_WindowClosed();
+    error AOXC_Vault_LimitExceeded();
+    error AOXC_Vault_TransferFailed();
+    error AOXC_Vault_ZeroAddress();
+
+    event WindowOpened(uint256 indexed windowId, uint256 windowEnd);
     event FundsWithdrawn(address indexed token, address indexed to, uint256 amount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -54,100 +65,98 @@ contract AOXCTreasury is Initializable, AccessControlUpgradeable, PausableUpgrad
         _disableInitializers();
     }
 
-    function initialize(address _governor) external initializer {
-        if (_governor == address(0)) revert Treasury_ZeroAddress();
+    function initialize(address governor) external initializer {
+        if (governor == address(0)) revert AOXC_Vault_ZeroAddress();
 
         __AccessControl_init();
         __Pausable_init();
+        __ReentrancyGuardTransient_init();
         __UUPSUpgradeable_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, _governor);
-        _grantRole(GOVERNANCE_ROLE, _governor);
-        _grantRole(EMERGENCY_ROLE, _governor);
-        _grantRole(UPGRADER_ROLE, _governor);
+        _grantRole(DEFAULT_ADMIN_ROLE, governor);
+        _grantRole(GOVERNANCE_ROLE, governor);
+        _grantRole(EMERGENCY_ROLE, governor);
+        _grantRole(UPGRADER_ROLE, governor);
 
         initialUnlockTimestamp = block.timestamp + INITIAL_LOCK_DURATION;
     }
 
     /*//////////////////////////////////////////////////////////////
-                             LOCK & LIMIT LOGIC
+                            WINDOW MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
-    function openSpendingWindow() external onlyRole(GOVERNANCE_ROLE) {
+    /**
+     * @notice Increments the window ID and resets the 1-year timer.
+     * @dev Only callable after the 6-year cliff or after the previous window expires.
+     */
+    function openNextWindow() external onlyRole(GOVERNANCE_ROLE) {
         if (block.timestamp < initialUnlockTimestamp) {
-            revert Treasury_VaultLocked(block.timestamp, initialUnlockTimestamp);
-        }
-        currentWindowEnd = block.timestamp + RECURRING_WINDOW;
-        periodStartBalance[address(0)] = address(this).balance;
-        emit WindowOpened(currentWindowEnd);
-    }
-
-    function _verifyLimit(address token, uint256 amount) internal {
-        if (emergencyMode) return;
-
-        if (periodStartBalance[token] == 0) {
-            periodStartBalance[token] =
-                (token == address(0)) ? address(this).balance : IERC20(token).balanceOf(address(this));
+            revert AOXC_Vault_Locked(block.timestamp, initialUnlockTimestamp);
         }
 
-        uint256 maxAllowed = (periodStartBalance[token] * MAX_WITHDRAWAL_BPS) / BPS_DENOMINATOR;
-        if (periodWithdrawn[token] + amount > maxAllowed) {
-            revert Treasury_ExceedsSixPercentLimit();
-        }
-        periodWithdrawn[token] += amount;
-    }
+        // Ensure the previous window has actually expired
+        if (block.timestamp <= currentWindowEnd) revert AOXC_Vault_WindowClosed();
 
-    modifier checkLock(address token, uint256 amount) {
-        if (!emergencyMode) {
-            if (block.timestamp < initialUnlockTimestamp) {
-                revert Treasury_VaultLocked(block.timestamp, initialUnlockTimestamp);
-            }
-            if (block.timestamp > currentWindowEnd) revert Treasury_WindowClosed();
-            _verifyLimit(token, amount);
-        }
-        _;
+        currentWindowId++;
+        currentWindowEnd = block.timestamp + SPENDING_WINDOW;
+
+        emit WindowOpened(currentWindowId, currentWindowEnd);
     }
 
     /*//////////////////////////////////////////////////////////////
-                             ASSET MANAGEMENT
+                            WITHDRAWAL ENGINE
     //////////////////////////////////////////////////////////////*/
 
     function withdrawERC20(address token, address to, uint256 amount)
         external
+        nonReentrant
         onlyRole(GOVERNANCE_ROLE)
-        checkLock(token, amount)
         whenNotPaused
     {
-        if (to == address(0)) revert Treasury_ZeroAddress();
+        _processWithdrawal(token, to, amount);
         IERC20(token).safeTransfer(to, amount);
-        emit FundsWithdrawn(token, to, amount);
     }
 
     function withdrawETH(address payable to, uint256 amount)
         external
+        nonReentrant
         onlyRole(GOVERNANCE_ROLE)
-        checkLock(address(0), amount)
         whenNotPaused
     {
-        if (to == address(0)) revert Treasury_ZeroAddress();
+        _processWithdrawal(address(0), to, amount);
         (bool success,) = to.call{value: amount}("");
-        if (!success) revert Treasury_TransferFailed();
-        emit FundsWithdrawn(address(0), to, amount);
+        if (!success) revert AOXC_Vault_TransferFailed();
+    }
+
+    function _processWithdrawal(address token, address to, uint256 amount) internal {
+        if (to == address(0)) revert AOXC_Vault_ZeroAddress();
+        if (emergencyMode) {
+            emit FundsWithdrawn(token, to, amount);
+            return;
+        }
+
+        if (block.timestamp > currentWindowEnd) revert AOXC_Vault_WindowClosed();
+
+        WindowAccounting storage acc = windowStates[token][currentWindowId];
+
+        // First withdrawal in this window? Take a snapshot.
+        if (acc.startBalance == 0) {
+            acc.startBalance = (token == address(0)) ? address(this).balance : IERC20(token).balanceOf(address(this));
+        }
+
+        uint256 maxAllowed = (acc.startBalance * MAX_WITHDRAWAL_BPS) / BPS_DENOMINATOR;
+        if (acc.withdrawn + amount > maxAllowed) revert AOXC_Vault_LimitExceeded();
+
+        acc.withdrawn += amount;
+        emit FundsWithdrawn(token, to, amount);
     }
 
     /*//////////////////////////////////////////////////////////////
-                             ADMIN & UPGRADE
+                            ADMIN & SAFETY
     //////////////////////////////////////////////////////////////*/
-
-    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
 
     function toggleEmergencyMode(bool status) external onlyRole(EMERGENCY_ROLE) {
         emergencyMode = status;
-        emit EmergencyModeToggled(status);
-    }
-
-    function resetPeriod() external onlyRole(GOVERNANCE_ROLE) {
-        // İhtiyaca göre periodWithdrawn mapping'i temizlenebilir.
     }
 
     function pause() external onlyRole(EMERGENCY_ROLE) {
@@ -158,8 +167,7 @@ contract AOXCTreasury is Initializable, AccessControlUpgradeable, PausableUpgrad
         _unpause();
     }
 
-    receive() external payable {}
+    function _authorizeUpgrade(address newImpl) internal override onlyRole(UPGRADER_ROLE) {}
 
-    // Storage gap for future upgrades
-    uint256[43] private __gap;
+    receive() external payable {}
 }

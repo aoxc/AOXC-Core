@@ -3,22 +3,21 @@ pragma solidity 0.8.33;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-// SENİN TREE ÇIKTINA GÖRE DOĞRU YOL: utils klasörü yok
 import {
     TimelockControllerUpgradeable
 } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
 /**
- * @title AOXC Timelock Controller
- * @notice AOXC ekosisteminin gerçek "Admin"i. Kararları bekletir ve güvenliği sağlar.
+ * @title AOXC Sovereign Timelock
+ * @notice The ultimate vault for AOXC DAO. Delays execution of governance proposals.
+ * @dev Optimized for OpenZeppelin v5. Fully compatible with AOXC Sovereign Token V2.
  */
 contract AOXCTimelock is Initializable, TimelockControllerUpgradeable, UUPSUpgradeable {
-    /*//////////////////////////////////////////////////////////////
-                                CUSTOM ERRORS
-    //////////////////////////////////////////////////////////////*/
-    error AOXC_InvalidAdminAddress();
-    error AOXC_MinDelayTooShort();
-    error AOXC_UnauthorizedUpgrade();
+    // --- CUSTOM ERRORS ---
+    error AOXC_System_Forbidden();
+    error AOXC_System_ZeroAddress();
+    error AOXC_System_MinDelayViolation();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -26,21 +25,41 @@ contract AOXCTimelock is Initializable, TimelockControllerUpgradeable, UUPSUpgra
     }
 
     /**
-     * @notice Timelock'ı başlatır.
-     * @param minDelay Önerinin yürütülmesi için gereken minimum süre (saniye).
-     * @param proposers Öneri sunabilecek adresler (Genelde Governor adresi).
-     * @param executors Öneriyi yürütebilecek adresler (Genelde address(0)).
-     * @param admin Admin rolü (Multi-sig veya DAO'nun kendisi).
+     * @notice Initializes the Timelock Controller.
+     * @param minDelay Minimum time (seconds) a proposal must wait before execution.
+     * @param proposers List of addresses allowed to propose (Usually the Governor).
+     * @param executors List of addresses allowed to execute (Usually address(0) for everyone).
+     * @param admin Initial admin for the timelock (Usually the Timelock itself for decentralization).
      */
     function initialize(uint256 minDelay, address[] memory proposers, address[] memory executors, address admin)
         public
         initializer
     {
-        if (admin == address(0)) revert AOXC_InvalidAdminAddress();
-        if (minDelay < 1 hours) revert AOXC_MinDelayTooShort();
+        if (admin == address(0)) revert AOXC_System_ZeroAddress();
+        if (minDelay < 1 hours) revert AOXC_System_MinDelayViolation();
 
+        // TimelockControllerUpgradeable'ın kendi init fonksiyonunu çağırıyoruz
         __TimelockController_init(minDelay, proposers, executors, admin);
         __UUPSUpgradeable_init();
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            DAO ENHANCEMENTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Provides the current version of the Timelock logic.
+     */
+    function version() public pure returns (string memory) {
+        return "2.0.0-Titanium";
+    }
+
+    /**
+     * @notice Check if an operation is pending.
+     * @param id The operation ID.
+     */
+    function isOperationPending(bytes32 id) public view returns (bool) {
+        return getOperationState(id) == OperationState.Pending;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -48,11 +67,12 @@ contract AOXCTimelock is Initializable, TimelockControllerUpgradeable, UUPSUpgra
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @dev Kontratın güncellenmesi için yetki kontrolü.
-     * Sadece Timelock'ın kendisi (yani DAO kararı geçerse) kendini güncelleyebilir.
+     * @dev Restricts upgrading to the DAO itself.
+     * In UUPS, the upgrade logic stays in the implementation.
      */
-    function _authorizeUpgrade(address newImplementation) internal override {
-        if (msg.sender != address(this)) revert AOXC_UnauthorizedUpgrade();
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
+        // DEFAULT_ADMIN_ROLE genelde address(this) (Timelock'un kendisi) olur.
+        // Bu sayede bir yükseltme ancak başarılı bir oylama ile gerçekleşebilir.
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -60,7 +80,9 @@ contract AOXCTimelock is Initializable, TimelockControllerUpgradeable, UUPSUpgra
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @dev Gelecekte eklenecek değişkenler için yer tutucu.
+     * @dev Reserved storage slots for future version upgrades.
+     * TimelockControllerUpgradeable (v5) uses namespaced storage,
+     * but we keep a gap for custom state variables.
      */
-    uint256[49] private __gap;
+    uint256[45] private __gap;
 }

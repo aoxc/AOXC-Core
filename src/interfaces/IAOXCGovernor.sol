@@ -2,15 +2,11 @@
 pragma solidity 0.8.33;
 
 /**
- * @title IAOXCGovernor
- * @author AOXC Protocol
- * @notice Interface for the AOXC Governance system.
- * @dev Standardized interface to allow interaction between the Governor and other ecosystem contracts.
+ * @title IAOXCGovernor (Sovereign Governance Standard)
+ * @notice Interface for the AOXC decentralized decision-making engine.
+ * @dev Optimized for OpenZeppelin v5.x and EIP-712 signature-based voting.
  */
 interface IAOXCGovernor {
-    
-    // --- Data Structures ---
-
     enum ProposalState {
         Pending,
         Active,
@@ -22,76 +18,46 @@ interface IAOXCGovernor {
         Executed
     }
 
-    struct ProposalCore {
-        uint256 voteStart;
-        uint256 voteEnd;
-        bool executed;
-        bool canceled;
-    }
-
-    // --- Events ---
+    /*//////////////////////////////////////////////////////////////
+                                EVENTS
+    //////////////////////////////////////////////////////////////*/
 
     event ProposalCreated(
         uint256 indexed proposalId,
         address proposer,
         address[] targets,
         uint256[] values,
-        string[] signatures,
         bytes[] calldatas,
         uint256 voteStart,
         uint256 voteEnd,
         string description
     );
 
-    event VoteCast(
-        address indexed voter, 
-        uint256 proposalId, 
-        uint8 support, 
-        uint256 weight, 
-        string reason
-    );
-
+    event VoteCast(address indexed voter, uint256 proposalId, uint8 support, uint256 weight, string reason);
     event ProposalExecuted(uint256 indexed proposalId);
     event ProposalCanceled(uint256 indexed proposalId);
     event ProposalQueued(uint256 indexed proposalId, uint256 eta);
 
-    // --- Read Functions ---
+    /*//////////////////////////////////////////////////////////////
+                            VIEW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
-    /**
-     * @notice Returns the current state of a proposal.
-     */
     function state(uint256 proposalId) external view returns (ProposalState);
+    function proposalSnapshot(uint256 proposalId) external view returns (uint256);
+    function proposalDeadline(uint256 proposalId) external view returns (uint256);
+    function proposalProposer(uint256 proposalId) external view returns (address);
 
-    /**
-     * @notice Returns the voting power of an account at a specific block time.
-     */
     function getVotes(address account, uint256 timepoint) external view returns (uint256);
-
-    /**
-     * @notice Returns the quorum required for a proposal to pass at a specific timepoint.
-     */
     function quorum(uint256 timepoint) external view returns (uint256);
 
-    /**
-     * @notice Returns the delay (in blocks/seconds) before voting starts after a proposal is created.
-     */
     function votingDelay() external view returns (uint256);
-
-    /**
-     * @notice Returns the duration of the voting period.
-     */
     function votingPeriod() external view returns (uint256);
-
-    /**
-     * @notice Returns the threshold of votes required to create a proposal.
-     */
     function proposalThreshold() external view returns (uint256);
 
-    // --- Logic Functions ---
+    /*//////////////////////////////////////////////////////////////
+                            CORE LOGIC
+    //////////////////////////////////////////////////////////////*/
 
-    /**
-     * @notice Creates a new proposal.
-     */
     function propose(
         address[] memory targets,
         uint256[] memory values,
@@ -99,9 +65,10 @@ interface IAOXCGovernor {
         string memory description
     ) external returns (uint256 proposalId);
 
-    /**
-     * @notice Executes a successful and queued proposal.
-     */
+    function queue(address[] memory targets, uint256[] memory values, bytes[] memory calldatas, bytes32 descriptionHash)
+        external
+        returns (uint256 proposalId);
+
     function execute(
         address[] memory targets,
         uint256[] memory values,
@@ -109,18 +76,27 @@ interface IAOXCGovernor {
         bytes32 descriptionHash
     ) external payable returns (uint256 proposalId);
 
-    /**
-     * @notice Casts a vote on a proposal.
-     * @param support 0 = Against, 1 = For, 2 = Abstain.
-     */
-    function castVote(uint256 proposalId, uint8 support) external returns (uint256 balance);
+    function cancel(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        bytes32 descriptionHash
+    ) external returns (uint256 proposalId);
+
+    /*//////////////////////////////////////////////////////////////
+                            VOTING ENGINE
+    //////////////////////////////////////////////////////////////*/
+
+    function castVote(uint256 proposalId, uint8 support) external returns (uint256 weight);
+
+    function castVoteWithReason(uint256 proposalId, uint8 support, string calldata reason)
+        external
+        returns (uint256 weight);
 
     /**
-     * @notice Casts a vote with a reason (useful for off-chain indexing and transparency).
+     * @notice Allows voting via EIP-712 signature (Gasless Voting).
      */
-    function castVoteWithReason(
-        uint256 proposalId,
-        uint8 support,
-        string calldata reason
-    ) external returns (uint256 balance);
+    function castVoteBySig(uint256 proposalId, uint8 support, uint8 v, bytes32 r, bytes32 s)
+        external
+        returns (uint256 weight);
 }
