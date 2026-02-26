@@ -1,46 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-/*//////////////////////////////////////////////////////////////
-    ___   ____ _  ________   ______ ____  ____  ______
-   /   | / __ \ |/ / ____/  / ____// __ \/ __ \/ ____/
-  / /| |/ / / /   / /      / /    / / / / /_/ / __/
- / ___ / /_/ /   / /___   / /___ / /_/ / _, _/ /___
-/_/  |_\____/_/|_\____/   \____/ \____/_/ |_/_____/
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import { ERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import { ERC20BurnableUpgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
+import { ERC20PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import { ERC20PermitUpgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import { ERC20VotesUpgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
+import { NoncesUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-    Sovereign Protocol Infrastructure | Storage Schema
-//////////////////////////////////////////////////////////////*/
-
-/**
- * @title AOXC Sovereign Storage Schema
- * @author AOXCAN AI & Orcun
- * @custom:contact      aoxcdao@gmail.com
- * @custom:website      https://aoxc.github.io/
- * @custom:repository   https://github.com/aoxc/AOXC-Core
- * @custom:social       https://x.com/AOXCDAO
- * @notice Centralized storage layout using ERC-7201 Namespaced Storage.
- * @dev High-fidelity storage pointers for gas efficiency and upgrade safety.
- * This pattern prevents storage collisions during complex proxy upgrades.
- */
-//////////////////////////////////////////////////////////////*/
-
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import {ERC20BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
-import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
-import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
-import {ERC20VotesUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
-import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-import {AOXCStorage} from "./abstract/AOXCStorage.sol";
+import { AOXCConstants } from "./libraries/AOXCConstants.sol";
+import { AOXCErrors } from "./libraries/AOXCErrors.sol";
 
 /**
- * @title AOXC Sovereign Hybrid V2
- * @dev Full Mainnet Compliance | V1 Legacy + ERC-7201 Namespaced Storage
+ * @title AOXC Sovereign Core V2.0.0
+ * @notice 26-Layer Defense integrated UUPS Token.
+ * @dev Optimized for X Layer Production. 0-point versioning.
  */
 contract AOXC is
     Initializable,
@@ -50,209 +30,213 @@ contract AOXC is
     AccessControlUpgradeable,
     ERC20PermitUpgradeable,
     ERC20VotesUpgradeable,
-    UUPSUpgradeable,
-    AOXCStorage
+    ReentrancyGuardUpgradeable,
+    UUPSUpgradeable
 {
     using SafeERC20 for IERC20;
 
     /*//////////////////////////////////////////////////////////////
-                        V1 IMMUTABLE CONSTANTS
+                        V1 STORAGE PRESERVATION
     //////////////////////////////////////////////////////////////*/
-    bytes32 public constant PAUSER_ROLE     = keccak256("PAUSER_ROLE");
-    bytes32 public constant MINTER_ROLE     = keccak256("MINTER_ROLE");
-    bytes32 public constant UPGRADER_ROLE   = keccak256("UPGRADER_ROLE");
-    bytes32 public constant COMPLIANCE_ROLE = keccak256("COMPLIANCE_ROLE"); 
 
-    uint256 public constant INITIAL_SUPPLY         = 100_000_000_000 * 1e18;
-    uint256 public constant YEAR_SECONDS           = 365 days;
-    uint256 public constant HARD_CAP_INFLATION_BPS = 600;
+    uint256 private _v1M1;
+    uint256 private _v1M2;
+    uint256 private _v1M3;
+    uint256 private _v1M4;
+    uint256 private _v1M5;
+    mapping(address => bool) private _v1Map1;
+    mapping(address => string) private _v1Map2;
+    mapping(address => bool) private _v1Map3;
+    mapping(address => uint256) private _v1Map4;
+    mapping(address => uint256) private _v1Map5;
+    uint256[43] private _gap; // Layer 7: Collision Gap Reservation
 
     /*//////////////////////////////////////////////////////////////
-                        V1 PHYSICAL STORAGE
-    //////////////////////////////////////////////////////////////*/
-    uint256 public yearlyMintLimit;
-    uint256 public lastMintTimestamp;
-    uint256 public mintedThisYear;
-    uint256 public maxTransferAmount;
-    uint256 public dailyTransferLimit;
-
-    mapping(address => bool) private _blacklisted;
-    mapping(address => string) public blacklistReason; 
-    mapping(address => bool) public isExcludedFromLimits;
-    mapping(address => uint256) public dailySpent;
-    mapping(address => uint256) public lastTransferDay;
-
-    // Fixed: Renamed from __gap to _gap to match mixedCase/naming conventions
-    uint256[43] private _gap; 
-
-    /*//////////////////////////////////////////////////////////////
-                            EVENTS & ERRORS
-    //////////////////////////////////////////////////////////////*/
-    event Blacklisted(address indexed account, string reason);
-    event Unblacklisted(address indexed account);
-    event MonetaryLimitsUpdated(uint256 maxTx, uint256 dailyLimit);
-    event TaxConfigurationUpdated(address treasury, uint256 bps, bool enabled);
-    
-    error GlobalLockActive();
-    error ExceedsMaxTransfer();
-    error ExceedsDailyLimit();
-    error BlacklistedAccount(address account);
-    error InvalidTaxBps(uint256 bps);
-    error UnauthorizedAction();
-
-    /*//////////////////////////////////////////////////////////////
-                             INITIALIZERS
+                        V2 NAMESPACED STORAGE
     //////////////////////////////////////////////////////////////*/
 
+    struct CoreStorage {
+        address xLayerSentinel;
+        uint256 yearlyMintLimit;
+        uint256 lastMintTimestamp;
+        uint256 mintedThisYear;
+        uint256 supplyAtStartOfYear; 
+        mapping(address => uint256) lastActionBlock;
+        mapping(address => bool) liquidityPools;
+        bool initializationLocked;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("aoxc.v2.core.storage")) - 1)) & ~0xff
+    bytes32 private constant CORE_STORAGE_SLOT =
+        0x487f909192518e932e49c95d97f9c733f5244510065090176d6c703126780a00;
+
+    function _getCoreStorage() internal pure returns (CoreStorage storage $) {
+        assembly { $.slot := CORE_STORAGE_SLOT }
+    }
+
+    event SentinelMigrated(address indexed oldSentinel, address indexed newSentinel);
+
+    // Layer 2: Constructor Lock
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
 
-    function initialize(address governor) external initializer {
-        __ERC20_init("AOXC", "AOXC");
-        __ERC20Burnable_init();
-        __ERC20Pausable_init();
-        __AccessControl_init();
-        __ERC20Permit_init("AOXC");
-        __ERC20Votes_init();
+    /**
+     * @notice Layer 3: Versioned Reinitializer for V2.0.0
+     * @param _sentinel The AI Security Sentinel address.
+     * @param _admin The Governor address.
+     */
+    function initializeV2(address _sentinel, address _admin) external reinitializer(2) {
+        if (_admin == address(0)) revert AOXCErrors.AOXC_InvalidAddress();
 
-        _setupRoles(governor);
+        CoreStorage storage $ = _getCoreStorage();
 
-        yearlyMintLimit = (INITIAL_SUPPLY * HARD_CAP_INFLATION_BPS) / 10000;
-        lastMintTimestamp = block.timestamp;
-        maxTransferAmount = 500_000_000 * 1e18; 
-        dailyTransferLimit = 1_000_000_000 * 1e18;
+        // Layer 4: Ensure logic components are initialized once
+        if (!$.initializationLocked) {
+            __ERC20_init_unchained("AOXC", "AOXC");
+            __ERC20Burnable_init_unchained();
+            __ERC20Pausable_init_unchained();
+            __AccessControl_init_unchained();
+            __ERC20Permit_init_unchained("AOXC");
+            __ERC20Votes_init_unchained();
+            __ReentrancyGuard_init_unchained();
+            $.initializationLocked = true;
+        }
 
-        isExcludedFromLimits[governor] = true;
-        isExcludedFromLimits[address(this)] = true;
+        // Layer 5-6: Role Assignment
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(AOXCConstants.GOVERNANCE_ROLE, _admin);
+        _grantRole(AOXCConstants.GUARDIAN_ROLE, _admin);
 
-        _mint(governor, INITIAL_SUPPLY);
-    }
+        $.xLayerSentinel = _sentinel;
+        $.lastMintTimestamp = block.timestamp;
 
-    function initializeV2(address _treasury, uint256 _taxBps) external reinitializer(2) onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_taxBps > 2000) revert InvalidTaxBps(_taxBps);
-        
-        MainStorage storage $ = _getMainStorage();
-        $.treasury = _treasury;
-        $.taxBps = _taxBps;
-        $.taxEnabled = _taxBps > 0;
-        
-        emit TaxConfigurationUpdated(_treasury, _taxBps, $.taxEnabled);
+        // [CRITICAL]: Capture current supply for inflation baseline if upgrading from V1
+        uint256 currentSupply = totalSupply();
+        if (currentSupply == 0) {
+            _mint(_admin, AOXCConstants.INITIAL_SUPPLY);
+            $.supplyAtStartOfYear = AOXCConstants.INITIAL_SUPPLY;
+        } else {
+            $.supplyAtStartOfYear = currentSupply;
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
-                          INTERNAL LOGIC
+                        ADAPTIVE DEFENSE ENGINE
     //////////////////////////////////////////////////////////////*/
 
-    function _update(address from, address to, uint256 val)
+    function _update(address from, address to, uint256 amount)
         internal
         override(ERC20Upgradeable, ERC20PausableUpgradeable, ERC20VotesUpgradeable)
     {
-        MainStorage storage $ = _getMainStorage();
+        CoreStorage storage $ = _getCoreStorage();
 
-        // Global Lock Logic (V2 Namespace)
-        if ($.isGlobalLockActive && from != address(0) && !hasRole(DEFAULT_ADMIN_ROLE, from)) {
-            revert GlobalLockActive();
+        // Layer 8: Global Kill-Switch
+        if (paused()) revert AOXCErrors.AOXC_GlobalLockActive();
+
+        // Transactional Validation (Excludes Mint/Burn and Admin transactions)
+        if (from != address(0) && to != address(0) && !hasRole(DEFAULT_ADMIN_ROLE, from)) {
+            
+            // Layer 9: Temporal Breach Defense (Anti-Bot/Flashloan)
+            if ($.lastActionBlock[from] == block.number) {
+                revert AOXCErrors.AOXC_TemporalBreach(block.number, block.number);
+            }
+            $.lastActionBlock[from] = block.number;
+
+            // Layer 10-12: Neural Sentinel Static Validation
+            if ($.xLayerSentinel != address(0)) {
+                (bool success, bytes memory data) = $.xLayerSentinel
+                    .staticcall(abi.encodeWithSignature("isAllowed(address,address)", from, to));
+                
+                if (!success || data.length < 32 || !abi.decode(data, (bool))) {
+                    revert AOXCErrors.AOXC_Neural_BastionSealed(block.timestamp);
+                }
+            }
+
+            // Layer 14-15: Magnitude Guard (2% Whale Protection)
+            uint256 txLimit = (totalSupply() * 200) / 10000; 
+            if (amount > txLimit) revert AOXCErrors.AOXC_ExceedsMaxTransfer(amount, txLimit);
         }
 
-        // Blacklist Logic (V1 Physical)
-        if (from != address(0) && _blacklisted[from]) revert BlacklistedAccount(from);
-        if (to != address(0) && _blacklisted[to]) revert BlacklistedAccount(to);
-
-        // Monetary & Tax Logic
-        if (from != address(0) && to != address(0) && !isExcludedFromLimits[from]) {
-            if (val > maxTransferAmount) revert ExceedsMaxTransfer();
-
-            uint256 day = block.timestamp / 1 days;
-            if (lastTransferDay[from] != day) {
-                dailySpent[from] = 0;
-                lastTransferDay[from] = day;
-            }
-            if (dailySpent[from] + val > dailyTransferLimit) revert ExceedsDailyLimit();
-            dailySpent[from] += val;
-
-            // Namespaced Tax Application
-            if ($.taxEnabled && $.taxBps > 0 && $.treasury != address(0)) {
-                uint256 tax = (val * $.taxBps) / 10000;
-                super._update(from, $.treasury, tax);
-                val -= tax;
-            }
-        }
-
-        super._update(from, to, val);
+        super._update(from, to, amount);
     }
 
     /*//////////////////////////////////////////////////////////////
-                            ADMINISTRATION
+                        ECONOMIC POLICY (MINTING)
     //////////////////////////////////////////////////////////////*/
 
-    function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) whenNotPaused {
-        if (_blacklisted[to]) revert BlacklistedAccount(to);
+    function mint(address to, uint256 amount)
+        external
+        onlyRole(AOXCConstants.GOVERNANCE_ROLE)
+        nonReentrant
+    {
+        CoreStorage storage $ = _getCoreStorage();
 
-        if (block.timestamp >= lastMintTimestamp + YEAR_SECONDS) {
-            uint256 periods = (block.timestamp - lastMintTimestamp) / YEAR_SECONDS;
-            lastMintTimestamp += periods * YEAR_SECONDS;
-            mintedThisYear = 0;
+        // Layer 19: Annual Limit Reset & Static Snapshot
+        if (block.timestamp >= $.lastMintTimestamp + 365 days) {
+            $.lastMintTimestamp = block.timestamp;
+            $.mintedThisYear = 0;
+            $.supplyAtStartOfYear = totalSupply(); 
         }
 
-        require(mintedThisYear + amount <= yearlyMintLimit, "AOXC: Inflation");
-        mintedThisYear += amount;
+        // Layer 20-21: Inflation Hardcap Logic
+        uint256 baselineSupply = $.supplyAtStartOfYear;
+        if (baselineSupply > 0) {
+            uint256 annualCap = (baselineSupply * AOXCConstants.MAX_MINT_PER_YEAR_BPS)
+                / AOXCConstants.BPS_DENOMINATOR;
+            if ($.mintedThisYear + amount > annualCap) {
+                revert AOXCErrors.AOXC_InflationHardcapReached();
+            }
+        }
+
+        $.mintedThisYear += amount;
         _mint(to, amount);
     }
 
-    function setTaxConfig(address treasury, uint256 bps, bool enabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (bps > 2000) revert InvalidTaxBps(bps);
-        MainStorage storage $ = _getMainStorage();
-        $.treasury = treasury;
-        $.taxBps = bps;
-        $.taxEnabled = enabled;
-        emit TaxConfigurationUpdated(treasury, bps, enabled);
+    /*//////////////////////////////////////////////////////////////
+                        SYSTEM GOVERNANCE
+    //////////////////////////////////////////////////////////////*/
+
+    function getSentinel() external view returns (address) {
+        return _getCoreStorage().xLayerSentinel;
     }
 
-    function addToBlacklist(address account, string calldata reason) external onlyRole(COMPLIANCE_ROLE) {
-        if (hasRole(DEFAULT_ADMIN_ROLE, account)) revert UnauthorizedAction();
-        _blacklisted[account] = true;
-        blacklistReason[account] = reason;
-        emit Blacklisted(account, reason);
+    function migrateSentinel(address _newSentinel)
+        external
+        onlyRole(AOXCConstants.GOVERNANCE_ROLE)
+    {
+        if (_newSentinel == address(0)) revert AOXCErrors.AOXC_InvalidAddress();
+        CoreStorage storage $ = _getCoreStorage();
+        emit SentinelMigrated($.xLayerSentinel, _newSentinel);
+        $.xLayerSentinel = _newSentinel;
     }
 
-    function removeFromBlacklist(address account) external onlyRole(COMPLIANCE_ROLE) {
-        _blacklisted[account] = false;
-        delete blacklistReason[account];
-        emit Unblacklisted(account);
-    }
+    function _authorizeUpgrade(address)
+        internal
+        override
+        view
+        onlyRole(AOXCConstants.GOVERNANCE_ROLE)
+    { }
 
-    function setGlobalLock(bool status) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _getMainStorage().isGlobalLockActive = status;
-    }
-
-    function rescueERC20(address token, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        IERC20(token).safeTransfer(msg.sender, amount);
+    function nonces(address owner)
+        public
+        view
+        override(ERC20PermitUpgradeable, NoncesUpgradeable)
+        returns (uint256)
+    {
+        return super.nonces(owner);
     }
 
     /*//////////////////////////////////////////////////////////////
-                             VIEW HELPERS
+                        OPERATIONAL CONTROL
     //////////////////////////////////////////////////////////////*/
 
-    function _setupRoles(address governor) internal {
-        _grantRole(DEFAULT_ADMIN_ROLE, governor);
-        _grantRole(PAUSER_ROLE, governor);
-        _grantRole(MINTER_ROLE, governor);
-        _grantRole(UPGRADER_ROLE, governor);
-        _grantRole(COMPLIANCE_ROLE, governor);
+    function pause() external onlyRole(AOXCConstants.GUARDIAN_ROLE) {
+        _pause();
     }
 
-    function _authorizeUpgrade(address) internal override onlyRole(UPGRADER_ROLE) {}
-
-    function isBlacklisted(address account) external view returns (bool) {
-        return _blacklisted[account];
-    }
-
-    function pause() external onlyRole(PAUSER_ROLE) { _pause(); }
-    function unpause() external onlyRole(PAUSER_ROLE) { _unpause(); }
-
-    function nonces(address owner) public view override(ERC20PermitUpgradeable, NoncesUpgradeable) returns (uint256) {
-        return super.nonces(owner);
+    function unpause() external onlyRole(AOXCConstants.GOVERNANCE_ROLE) {
+        _unpause();
     }
 }

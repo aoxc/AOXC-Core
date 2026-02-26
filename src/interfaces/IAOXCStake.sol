@@ -1,100 +1,102 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-/*//////////////////////////////////////////////////////////////
-    ___   ____ _  ________   ______ ____  ____  ______
-   /   | / __ \ |/ / ____/  / ____// __ \/ __ \/ ____/
-  / /| |/ / / /   / /      / /    / / / / /_/ / __/
- / ___ / /_/ /   / /___   / /___ / /_/ / _, _/ /___
-/_/  |_\____/_/|_\____/   \____/ \____/_/ |_/_____/
-
-    Sovereign Protocol Infrastructure | Storage Schema
-//////////////////////////////////////////////////////////////*/
-
 /**
- * @title AOXC Sovereign Storage Schema
- * @author AOXCAN AI & Orcun
- * @custom:contact      aoxcdao@gmail.com
- * @custom:website      https://aoxc.github.io/
- * @custom:repository   https://github.com/aoxc/AOXC-Core
- * @custom:social       https://x.com/AOXCDAO
- * @notice Centralized storage layout using ERC-7201 Namespaced Storage.
- * @dev High-fidelity storage pointers for gas efficiency and upgrade safety.
- * This pattern prevents storage collisions during complex proxy upgrades.
+ * @title IAOXCStake Sovereign Interface V2.6
+ * @author AOXC AI Architect & Senior Quantum Auditor
+ * @notice 26-Layer Reputation & Staking Interface with Neural-Pulse Boosting.
+ * @dev Enforces Time-Weighted Meritocracy and AI-Validated Yield Scaling to prevent sybil attacks and reward loyalty.
  */
-//////////////////////////////////////////////////////////////*/
-
 interface IAOXCStake {
     /**
      * @dev Structure representing a user's unique staking position.
-     * Packed for storage efficiency (Audit-ready).
+     * [Layer 1-5] Optimized storage packing (Slot Isolation) for audit-ready alignment.
      */
     struct StakeInfo {
-        uint128 amount; // Principal amount staked
+        uint128 amount; // Principal amount of AOXC tokens staked
         uint128 startTime; // Block timestamp when stake was initiated
-        uint128 lockDuration; // Required lock period in seconds
-        bool active; // True if stake is still in the pool
+        uint128 lockDuration; // Mandatory lock period in seconds (e.g., 26 months)
+        uint64 neuralBoost; // [Layer 6] AI-assigned reputation multiplier (scaled)
+        bool active; // Operational status of the staking position
     }
 
     /*//////////////////////////////////////////////////////////////
-                                EVENTS
+                                TELEMETRY
     //////////////////////////////////////////////////////////////*/
 
-    event Staked(address indexed user, uint256 indexed stakeIndex, uint256 amount, uint256 duration);
-    event Withdrawn(address indexed user, uint256 amountReturned, uint256 amountBurned, bool isEarly);
+    event Staked(
+        address indexed user, uint256 indexed stakeIndex, uint256 amount, uint256 duration
+    );
+    event Withdrawn(
+        address indexed user, uint256 amountReturned, uint256 amountBurned, bool isEarly
+    );
+    event NeuralBoostApplied(address indexed user, uint256 boostFactor);
     event RewardRateUpdated(uint256 oldRate, uint256 newRate);
 
     /*//////////////////////////////////////////////////////////////
-                            USER OPERATIONS
+                        CORE NEURAL OPERATIONS
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Stakes a specific amount of tokens for a tiered duration.
-     * @param _amount The amount of AOXC tokens to lock.
-     * @param _months The lock tier (3, 6, 9, or 12 months).
+     * @notice Initiates a staking position with a Mandatory Neural Handshake.
+     * @dev Layer 17-22: AI Sentinel must sign the entry to verify user's non-malicious history.
+     * @param _amount Total AOXC tokens to be locked in the bastion.
+     * @param _months Lock-up tier (validated against AOXCConstants: 3, 6, 9, 12, or 26).
+     * @param _aiSignature Cryptographic proof from the AI Sentinel Node for risk validation.
      */
-    function stake(uint256 _amount, uint256 _months) external;
+    function stake(uint256 _amount, uint256 _months, bytes calldata _aiSignature) external;
 
     /**
-     * @notice Withdraws a specific stake. Early withdrawal triggers a burn of the principal.
-     * @param _stakeIndex The index of the stake in the user's array.
+     * @notice Finalizes a staking position and releases funds/rewards.
+     * @dev Layer 16-20: If withdrawal is pre-mature, a "Slashing" mechanism burns a portion of the principal.
+     * @param _stakeIndex The specific index of the user's staking array.
      */
     function withdraw(uint256 _stakeIndex) external;
 
     /*//////////////////////////////////////////////////////////////
-                            VIEW FUNCTIONS
+                        V26 DEFENSIVE VIEWS
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Calculates the current accrued reward for a specific stake.
-     * @param _user The address of the staker.
-     * @param _index The index of the stake.
-     * @return reward Accrued reward amount with 1e12 precision factor.
+     * @notice Layer 9: Calculates algorithmic rewards using the Neural Multiplier.
+     * Formula: f(amount, time, neuralBoost) = reward.
      */
     function calculateReward(address _user, uint256 _index) external view returns (uint256 reward);
 
     /**
-     * @notice Returns total number of stakes created by a user.
+     * @notice Layer 15: Returns the total Reputation Points (Merit) earned by the user.
+     * This score directly influences the user's voting power in IAOXCGovernor.
      */
-    function getStakeCount(address _user) external view returns (uint256);
+    function getUserReputation(address _user) external view returns (uint256 merit);
 
     /**
-     * @notice Returns detailed information about a specific stake.
+     * @notice Layer 23: Checks if the Staking Bastion is under an Autonomous 26-Hour Lockdown.
+     */
+    function getStakingLockState() external view returns (bool isLocked, uint256 timeRemaining);
+
+    /**
+     * @notice Retrieves detailed storage data for a specific staking position.
      */
     function getStakeDetails(address _user, uint256 _index) external view returns (StakeInfo memory);
 
     /**
-     * @notice Returns the total amount of tokens currently locked in the staking contract.
+     * @notice Layer 24: Returns the Total Value Locked (TVL) specifically within the Staking module.
      */
     function totalValueLocked() external view returns (uint256);
 
     /*//////////////////////////////////////////////////////////////
-                            ADMIN FUNCTIONS
+                         GOVERNANCE & AUDIT
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Updates the annual reward basis points. Restricted to Governance.
-     * @param _newRateBps The new reward rate (e.g., 600 for 6%).
+     * @notice Adjusts the global reward basis points. Restricted to the Governance Role.
+     * @param _newRateBps The new annual yield rate in Basis Points (1/10000).
      */
     function updateRewardRate(uint256 _newRateBps) external;
+
+    /**
+     * @notice Updates the AI Sentinel node address for cryptographic entry verification.
+     * @param _newNode The new authorized AI Oracle identity.
+     */
+    function updateNeuralNode(address _newNode) external;
 }

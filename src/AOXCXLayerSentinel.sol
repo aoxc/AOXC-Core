@@ -1,0 +1,214 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.33;
+
+import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import { PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+
+import { AOXCConstants } from "./libraries/AOXCConstants.sol";
+import { AOXCErrors } from "./libraries/AOXCErrors.sol";
+
+/**
+ * @title AOXCXLayerSentinel
+ * @notice Autonomous AI-driven security nexus for the X Layer ecosystem.
+ */
+contract AOXCXLayerSentinel is
+    Initializable,
+    AccessControlUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable
+{
+    using ECDSA for bytes32;
+    using MessageHashUtils for bytes32;
+
+    struct SentinelStorage {
+        address aiSentinelNode;      // L1: AI Identity provider
+        uint256 aiAnomalyThreshold;  // L2: Sensitivity (BPS)
+        uint256 lastNeuralPulse;     // L11: Last pulse timestamp
+        uint256 neuralNonce;         // L17: Replay protection
+        uint256 circuitBreakerTime;  // L10: Temporal isolation start
+        bool isSovereignSealed;      // L23: Permanent lockdown flag
+        bool initialized;            // L5: Initialization guard
+        mapping(address => bool) blacklisted;
+        mapping(address => bool) whitelisted;
+        mapping(address => uint256) reputationScore;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("aoxc.v2.sentinel.storage")) - 1)) & ~0xff
+    bytes32 private constant STORAGE_SLOT =
+        0x8a7f909192518e932e49c95d97f9c733f5244510065090176d6c703126780c00;
+
+    function _getStore() internal pure returns (SentinelStorage storage $) {
+        assembly { $.slot := STORAGE_SLOT }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                TELEMETRY
+    //////////////////////////////////////////////////////////////*/
+
+    event NeuralPulseSync(uint256 indexed timestamp, uint256 nonce, uint256 riskScore);
+    event LockdownActivated(uint256 startTime, string reason);
+    event ReputationAdjusted(address indexed actor, uint256 oldScore, uint256 newScore);
+    event SentinelNodeMigrated(address indexed oldNode, address indexed newNode);
+    event SecurityBypassGranted(address indexed account, bool status);
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address _admin, address _aiNode) public reinitializer(2) {
+        if (_admin == address(0) || _aiNode == address(0)) revert AOXCErrors.AOXC_InvalidAddress();
+
+        __AccessControl_init();
+        __ReentrancyGuard_init();
+        __Pausable_init();
+
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(AOXCConstants.GUARDIAN_ROLE, _admin);
+
+        SentinelStorage storage $ = _getStore();
+        if ($.initialized) revert AOXCErrors.AOXC_GlobalLockActive();
+
+        $.aiSentinelNode = _aiNode;
+        $.aiAnomalyThreshold = 500; // 5.00% Baseline
+        $.lastNeuralPulse = block.timestamp;
+        $.whitelisted[_admin] = true;
+        $.initialized = true;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            CORE DEFENSE MATRIX
+    //////////////////////////////////////////////////////////////*/
+
+    function isAllowed(address from, address to) external view returns (bool) {
+        SentinelStorage storage $ = _getStore();
+
+        // L23 & L24: Sovereign Lockdown & Pause Control
+        if ($.isSovereignSealed || paused()) return false;
+
+        // L10: Temporal Circuit Breaker (Temporary freeze)
+        if ($.circuitBreakerTime != 0) {
+            // Check if duration has passed
+            if (block.timestamp <= $.circuitBreakerTime + AOXCConstants.AI_MAX_FREEZE_DURATION) {
+                return false;
+            }
+        }
+
+        // L14: Whitelist & Admin Bypass (Check this before reputation/blacklist for performance)
+        if ($.whitelisted[from] || $.whitelisted[to]) return true;
+
+        // L13: Global Blacklist Check
+        if ($.blacklisted[from] || $.blacklisted[to]) return false;
+
+        // L15: Reputation Gate (Min score 10 for new/untrusted users)
+        // [AUDIT]: Start with a default score or adjust this threshold per use-case
+        if ($.reputationScore[from] < 10 && from != address(0)) {
+             // Optional: Return true if you want to allow small trades for new users
+             // return false; 
+        }
+
+        return true;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            AI NEURAL INTERFACE
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Layer 17-22: Neural Oracle Signal Processing.
+     */
+    function processNeuralSignal(uint256 riskScore, uint256 nonce, bytes calldata signature)
+        external
+        nonReentrant
+        whenNotPaused
+    {
+        SentinelStorage storage $ = _getStore();
+
+        // L17: Nonce Synchronization Guard
+        if (nonce <= $.neuralNonce) {
+            revert AOXCErrors.AOXC_Neural_StaleSignal(nonce, $.neuralNonce);
+        }
+
+        // L18 & L22: ASM-Optimized Cryptographic Recovery
+        bytes32 innerHash;
+        address thisAddr = address(this);
+        uint256 cId = block.chainid;
+
+        assembly {
+            let ptr := mload(0x40)
+            mstore(ptr, riskScore)
+            mstore(add(ptr, 0x20), nonce)
+            mstore(add(ptr, 0x40), thisAddr)
+            mstore(add(ptr, 0x60), cId)
+            innerHash := keccak256(ptr, 0x80)
+        }
+
+        // [FIX]: Verifying AI Sentinel Identity
+        if (innerHash.toEthSignedMessageHash().recover(signature) != $.aiSentinelNode) {
+            revert AOXCErrors.AOXC_Neural_IdentityForgery();
+        }
+
+        $.neuralNonce = nonce;
+        $.lastNeuralPulse = block.timestamp;
+
+        // L19-21: Adaptive Response Logic
+        if (riskScore >= 1000) { // 10% Risk
+            $.isSovereignSealed = true;
+            _pause();
+            emit LockdownActivated(block.timestamp, "NEURAL_CRITICAL_HALT");
+        } else if (riskScore >= $.aiAnomalyThreshold) {
+            $.circuitBreakerTime = block.timestamp;
+            emit LockdownActivated(block.timestamp, "TEMPORAL_BREAKER_TRIPPED");
+        } else {
+            // [NEW]: Reset circuit breaker if risk is back to normal
+            $.circuitBreakerTime = 0;
+        }
+
+        emit NeuralPulseSync(block.timestamp, nonce, riskScore);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            GOVERNANCE & EMERGENCY
+    //////////////////////////////////////////////////////////////*/
+
+    function updateReputation(address target, uint256 score)
+        external
+        onlyRole(AOXCConstants.GUARDIAN_ROLE)
+    {
+        SentinelStorage storage $ = _getStore();
+        uint256 old = $.reputationScore[target];
+        $.reputationScore[target] = score;
+        emit ReputationAdjusted(target, old, score);
+    }
+
+    function emergencyBastionUnlock() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        SentinelStorage storage $ = _getStore();
+        $.isSovereignSealed = false;
+        $.circuitBreakerTime = 0;
+        if (paused()) _unpause();
+    }
+
+    function migrateSentinelNode(address newNode) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newNode == address(0)) revert AOXCErrors.AOXC_InvalidAddress();
+        SentinelStorage storage $ = _getStore();
+        address old = $.aiSentinelNode;
+        $.aiSentinelNode = newNode;
+        emit SentinelNodeMigrated(old, newNode);
+    }
+
+    function setWhitelist(address account, bool status) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _getStore().whitelisted[account] = status;
+        emit SecurityBypassGranted(account, status);
+    }
+
+    function setBlacklist(address account, bool status)
+        external
+        onlyRole(AOXCConstants.GUARDIAN_ROLE)
+    {
+        _getStore().blacklisted[account] = status;
+    }
+}

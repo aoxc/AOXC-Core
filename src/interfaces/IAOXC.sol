@@ -1,33 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-/*//////////////////////////////////////////////////////////////
-    ___   ____ _  ________   ______ ____  ____  ______
-   /   | / __ \ |/ / ____/  / ____// __ \/ __ \/ ____/
-  / /| |/ / / /   / /      / /    / / / / /_/ / __/
- / ___ / /_/ /   / /___   / /___ / /_/ / _, _/ /___
-/_/  |_\____/_/|_\____/   \____/ \____/_/ |_/_____/
-
-    Sovereign Protocol Infrastructure | Storage Schema
-//////////////////////////////////////////////////////////////*/
-
 /**
- * @title AOXC Sovereign Storage Schema
- * @author AOXCAN AI & Orcun
- * @custom:contact      aoxcdao@gmail.com
- * @custom:website      https://aoxc.github.io/
- * @custom:repository   https://github.com/aoxc/AOXC-Core
- * @custom:social       https://x.com/AOXCDAO
- * @notice Centralized storage layout using ERC-7201 Namespaced Storage.
- * @dev High-fidelity storage pointers for gas efficiency and upgrade safety.
- * This pattern prevents storage collisions during complex proxy upgrades.
+ * @title IAOXC Sovereign Interface V2.6
+ * @author AOXC Core Architecture Team
+ * @notice Master interface defining the 26-Layer Defense Protocol and Neural Apex standards.
+ * @dev Integrates ERC20, EIP-2612 (Permit), ERC-5805 (Votes), and Autonomous AI Security.
  */
-//////////////////////////////////////////////////////////////*/
-
 interface IAOXC {
     /*//////////////////////////////////////////////////////////////
-                                ERC20 STANDARD
+                             ERC20 & PERMIT
     //////////////////////////////////////////////////////////////*/
+
     function totalSupply() external view returns (uint256);
     function balanceOf(address account) external view returns (uint256);
     function transfer(address to, uint256 amount) external returns (bool);
@@ -35,38 +19,86 @@ interface IAOXC {
     function approve(address spender, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
 
-    /*//////////////////////////////////////////////////////////////
-                                ERC20 PERMIT (EIP-2612)
-    //////////////////////////////////////////////////////////////*/
-    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
-        external;
+    /**
+     * @notice Allows token approval via signature (EIP-2612).
+     */
+    function permit(
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external;
+
     function nonces(address owner) external view returns (uint256);
-    function DOMAIN_SEPARATOR() external view returns (bytes32);
 
     /*//////////////////////////////////////////////////////////////
-                                ERC20 VOTES & TIMEPTS
+                         VOTES & GOVERNANCE
     //////////////////////////////////////////////////////////////*/
+
     function clock() external view returns (uint48);
     function CLOCK_MODE() external view returns (string memory);
     function getVotes(address account) external view returns (uint256);
     function getPastVotes(address account, uint256 timepoint) external view returns (uint256);
-    function getPastTotalSupply(uint256 timepoint) external view returns (uint256);
     function delegates(address account) external view returns (address);
     function delegate(address delegatee) external;
-    function delegateBySig(address delegatee, uint256 nonce, uint256 expiry, uint8 v, bytes32 r, bytes32 s) external;
 
     /*//////////////////////////////////////////////////////////////
-                                SUPPLY CONTROL
+                        V26 NEURAL & TELEMETRY
     //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Processes a cryptographically signed risk signal from the AI Sentinel Node.
+     * @param riskScore Probability of anomaly (scaled 0-10000).
+     * @param nonce Security nonce to prevent replay attacks.
+     * @param signature ECDSA proof from the authorized AI Sentinel node.
+     */
+    function processNeuralSignal(uint256 riskScore, uint256 nonce, bytes calldata signature)
+        external;
+
+    /**
+     * @notice Returns the status of the 26-Hour Autonomous Circuit Breaker.
+     * @return isLocked Boolean indicating if the protocol-level freeze is active.
+     * @return timeRemaining The remaining duration of the lockdown in seconds.
+     */
+    function getSovereignLockState() external view returns (bool isLocked, uint256 timeRemaining);
+
+    /**
+     * @notice Dual-Factor Asset Restitution (Clawback) for high-risk anomalies.
+     * @dev Only executable via a combination of AI Verification and Compliance authorization.
+     */
+    function sovereignClawback(address from, address to, uint256 amount, bytes calldata aiSignature)
+        external;
+
+    /**
+     * @notice Verifies the liveness of the Neural Pulse (Heartbeat).
+     * @return active Boolean indicating if the connection to the AI Oracle is within the grace period.
+     */
+    function isNeuralPulseActive() external view returns (bool active);
+
+    /*//////////////////////////////////////////////////////////////
+                         SUPPLY & COMPLIANCE
+    //////////////////////////////////////////////////////////////*/
+
     function mint(address to, uint256 amount) external;
     function burn(uint256 amount) external;
     function burnFrom(address account, uint256 amount) external;
 
-    /*//////////////////////////////////////////////////////////////
-                                COMPLIANCE
-    //////////////////////////////////////////////////////////////*/
+    /**
+     * @notice Check if an address is restricted from protocol interactions.
+     */
     function isBlacklisted(address account) external view returns (bool);
-    function isExcludedFromLimits(address account) external view returns (bool);
-    function setExclusionFromLimits(address account, bool status) external;
+
+    /**
+     * @notice Sets the restriction status of a specific address.
+     */
     function setBlacklistStatus(address account, bool status) external;
+
+    /**
+     * @notice Retrieves the current reputation score of an actor within the ecosystem.
+     * @dev Used for gated liquidity access and transaction magnitude scaling.
+     */
+    function getReputationScore(address account) external view returns (uint256);
 }

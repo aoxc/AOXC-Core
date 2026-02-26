@@ -1,112 +1,140 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-/*//////////////////////////////////////////////////////////////
-    ___   ____ _  ________   ______ ____  ____  ______
-   /   | / __ \ |/ / ____/  / ____// __ \/ __ \/ ____/
-  / /| |/ / / /   / /      / /    / / / / /_/ / __/
- / ___ / /_/ /   / /___   / /___ / /_/ / _, _/ /___
-/_/  |_\____/_/|_\____/   \____/ \____/_/ |_/_____/
+import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
-    Sovereign Protocol Infrastructure | Storage Schema
-//////////////////////////////////////////////////////////////*/
-
-/**
- * @title AOXC Sovereign Storage Schema
- * @author AOXCAN AI & Orcun
- * @custom:contact      aoxcdao@gmail.com
- * @custom:website      https://aoxc.github.io/
- * @custom:repository   https://github.com/aoxc/AOXC-Core
- * @custom:social       https://x.com/AOXCDAO
- * @notice Centralized storage layout using ERC-7201 Namespaced Storage.
- * @dev High-fidelity storage pointers for gas efficiency and upgrade safety.
- * This pattern prevents storage collisions during complex proxy upgrades.
- */
-//////////////////////////////////////////////////////////////*/
-
-import {
-    TimelockControllerUpgradeable
-} from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
-
-// AOXC Core Infrastructure
 import { AOXCConstants } from "./libraries/AOXCConstants.sol";
 import { AOXCErrors } from "./libraries/AOXCErrors.sol";
 
 /**
- * @title AOXCTimelock
- * @notice Enforces a delay between proposal success and execution.
- * @dev Features dynamic delays for Sub-DAOs and Guardian intervention.
+ * @title AOXCTimelock V2.0.1
+ * @notice Temporal Governance Defense with AI-Driven Sovereign Veto.
+ * @dev [V2.0.1-FIX]: Fixed calldata access in assembly to resolve Error (1397).
  */
-contract AOXCTimelock is TimelockControllerUpgradeable {
-    
-    /// @notice Custom minimum delays for specific Sub-DAO addresses.
-    mapping(address => uint256) public subDaoMinDelays;
+contract AOXCTimelock is TimelockControllerUpgradeable, UUPSUpgradeable {
+    using ECDSA for bytes32;
+    using MessageHashUtils for bytes32;
 
-    event SubDaoDelayUpdated(address indexed subDao, uint256 newDelay);
+    struct NeuralTimelockStorage {
+        address aiOracleNode;
+        uint256 aiAnomalyThreshold;
+        uint256 neuralNonce;
+        uint256 maxNeuralDelay;
+        uint256 lastSentinelPulse;
+        mapping(bytes32 => bool) neuralSignatureRegistry; 
+        mapping(address => uint256) targetSecurityTier;
+        bool initialized;
+    }
+
+    bytes32 private constant TIMELOCK_STORAGE_SLOT = 
+        0x8898951034f77c862137699d690a4833f5244510065090176d6c703126780a00;
+
+    function _getNeural() internal pure returns (NeuralTimelockStorage storage $) {
+        assembly { $.slot := TIMELOCK_STORAGE_SLOT }
+    }
+
+    event AISovereignVeto(bytes32 indexed operationId, string reason);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
+    constructor() { _disableInitializers(); }
 
-    /**
-     * @notice Initializes the Timelock controller.
-     * @param minDelay Minimum time (in seconds) an operation must wait.
-     * @param proposers List of addresses allowed to propose.
-     * @param executors List of addresses allowed to execute.
-     * @param admin Admin address for the timelock.
-     */
-    function initialize(
-        uint256 minDelay, 
-        address[] memory proposers, 
-        address[] memory executors, 
-        address admin
-    ) public override initializer {
-        if (admin == address(0)) revert AOXCErrors.AOXC_InvalidAddress();
-        
-        // Base OpenZeppelin initialization
+    function initializeApex(
+        uint256 minDelay,
+        address[] memory proposers,
+        address[] memory executors,
+        address admin,
+        address aiNode
+    ) public initializer {
         __TimelockController_init(minDelay, proposers, executors, admin);
+
+        NeuralTimelockStorage storage $ = _getNeural();
+        if ($.initialized) revert AOXCErrors.AOXC_GlobalLockActive();
+
+        $.aiOracleNode = aiNode;
+        $.aiAnomalyThreshold = 8500;
+        $.maxNeuralDelay = 26 days;
+        $.lastSentinelPulse = block.timestamp;
+        $.initialized = true;
+
+        _grantRole(CANCELLER_ROLE, address(this));
     }
 
+    /*//////////////////////////////////////////////////////////////
+                        NEURAL INTERVENTION
+    //////////////////////////////////////////////////////////////*/
+
     /**
-     * @notice Sets a custom delay for specific Sub-DAOs.
-     * @dev Allows governance to speed up or slow down specific department actions.
+     * @notice Layer 26: AI-Signed Sovereign Veto.
+     * @dev [V2.0.1]: Calldata-safe assembly hashing for zero-warning production.
      */
-    function setSubDaoMinDelay(address subDao, uint256 newDelay) external {
-        _checkRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        if (subDao == address(0)) revert AOXCErrors.AOXC_InvalidAddress();
+    function neuralVeto(bytes32 id, bytes calldata signature) external {
+        NeuralTimelockStorage storage $ = _getNeural();
         
-        subDaoMinDelays[subDao] = newDelay;
-        emit SubDaoDelayUpdated(subDao, newDelay);
-    }
-
-    /**
-     * @notice Dynamic delay fetcher. 
-     * @dev Overrides base to check for Sub-DAO specific requirements first.
-     */
-    function getMinDelay() public view override returns (uint256) {
-        uint256 customDelay = subDaoMinDelays[msg.sender];
-        if (customDelay > 0) {
-            return customDelay;
+        bytes32 sigHash;
+        // [V2-FIX]: Calldata elements accessed via .offset and .length
+        assembly {
+            let ptr := mload(0x40)
+            calldatacopy(ptr, signature.offset, signature.length)
+            sigHash := keccak256(ptr, signature.length)
         }
-        return super.getMinDelay();
+
+        if ($.neuralSignatureRegistry[sigHash]) {
+            revert AOXCErrors.AOXC_Neural_SignatureReused(sigHash);
+        }
+
+        bytes32 msgHash = keccak256(
+            abi.encode(id, $.neuralNonce, address(this), block.chainid)
+        ).toEthSignedMessageHash();
+
+        if (msgHash.recover(signature) != $.aiOracleNode) {
+            revert AOXCErrors.AOXC_Neural_IdentityForgery();
+        }
+
+        $.neuralSignatureRegistry[sigHash] = true;
+        $.neuralNonce++;
+        
+        cancel(id); 
+        
+        emit AISovereignVeto(id, "Neural Sentinel Intervention");
     }
 
-    /**
-     * @notice Emergency cancellation for the Guardian.
-     * @dev Prevents malicious or erroneous operations from executing.
-     */
-    function guardianCancel(bytes32 id) external {
-        // Accessing AOXC Guardian Role from global constants
-        _checkRole(AOXCConstants.GUARDIAN_ROLE, msg.sender);
-        
-        if (!isOperationPending(id)) revert AOXCErrors.AOXC_CustomRevert("Timelock: Not pending");
-        
-        cancel(id);
+    /*//////////////////////////////////////////////////////////////
+                        SECURITY ENFORCEMENT
+    //////////////////////////////////////////////////////////////*/
+
+    function schedule(
+        address target,
+        uint256 value,
+        bytes calldata data,
+        bytes32 predecessor,
+        bytes32 salt,
+        uint256 delay
+    ) public virtual override {
+        uint256 enforcedDelay = delay;
+        NeuralTimelockStorage storage $ = _getNeural();
+
+        uint256 targetTier = $.targetSecurityTier[target];
+        if (targetTier > enforcedDelay) enforcedDelay = targetTier;
+
+        if (value > 0 && enforcedDelay < 7 days) {
+            enforcedDelay = 7 days;
+        }
+
+        super.schedule(target, value, data, predecessor, salt, enforcedDelay);
     }
 
-    /**
-     * @dev Storage gap for future upgrades (keeps logic slots safe).
-     */
-    uint256[47] private _gap;
+    function setTargetSecurityTier(address target, uint256 minDelay) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _getNeural().targetSecurityTier[target] = minDelay;
+    }
+
+    function _authorizeUpgrade(address) internal override view {
+        if (msg.sender != address(this)) {
+            revert AOXCErrors.AOXC_Unauthorized(AOXCConstants.GOVERNANCE_ROLE, msg.sender);
+        }
+    }
+
+    receive() external payable override {}
 }

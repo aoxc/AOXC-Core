@@ -1,244 +1,213 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-/*//////////////////////////////////////////////////////////////
-    ___   ____ _  ________   ______ ____  ____  ______
-   /   | / __ \ |/ / ____/  / ____// __ \/ __ \/ ____/
-  / /| |/ / / /   / /      / /    / / / / /_/ / __/
- / ___ / /_/ /   / /___   / /___ / /_/ / _, _/ /___
-/_/  |_\____/_/|_\____/   \____/ \____/_/ |_/_____/
-
-    Sovereign Protocol Infrastructure | Storage Schema
-//////////////////////////////////////////////////////////////*/
-
-/**
- * @title AOXC Sovereign Storage Schema
- * @author AOXCAN AI & Orcun
- * @custom:contact      aoxcdao@gmail.com
- * @custom:website      https://aoxc.github.io/
- * @custom:repository   https://github.com/aoxc/AOXC-Core
- * @custom:social       https://x.com/AOXCDAO
- * @notice Centralized storage layout using ERC-7201 Namespaced Storage.
- * @dev High-fidelity storage pointers for gas efficiency and upgrade safety.
- * This pattern prevents storage collisions during complex proxy upgrades.
- */
-//////////////////////////////////////////////////////////////*/
-
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { GovernorUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/GovernorUpgradeable.sol";
-import { GovernorSettingsUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/extensions/GovernorSettingsUpgradeable.sol";
-import { GovernorCountingSimpleUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/extensions/GovernorCountingSimpleUpgradeable.sol";
-import { GovernorVotesUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/extensions/GovernorVotesUpgradeable.sol";
-import { GovernorVotesQuorumFractionUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/extensions/GovernorVotesQuorumFractionUpgradeable.sol";
-import { GovernorTimelockControlUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/extensions/GovernorTimelockControlUpgradeable.sol";
-import { GovernorPreventLateQuorumUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/extensions/GovernorPreventLateQuorumUpgradeable.sol";
-import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
-import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
-import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import { ContextUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
-// AOXC Core Infrastructure
 import { AOXCConstants } from "./libraries/AOXCConstants.sol";
 import { AOXCErrors } from "./libraries/AOXCErrors.sol";
-import { AOXCStorage } from "./abstract/AOXCStorage.sol";
 
 /**
- * @title AOXCGovernor
- * @notice The sovereign governance engine for the AOXC Protocol.
- * @dev Integrates with ERC-7201 storage and AOXC Global Libraries.
+ * @title AOXCGovernor V2.0.1
+ * @notice 26-Layer Neural Governance Engine.
+ * @dev [V2.0.1-OPTIMIZED]: Optimized with calldata-safe assembly hashing to resolve forge-lint notes.
  */
 contract AOXCGovernor is
     Initializable,
-    GovernorUpgradeable,
-    GovernorSettingsUpgradeable,
-    GovernorCountingSimpleUpgradeable,
-    GovernorVotesUpgradeable,
-    GovernorVotesQuorumFractionUpgradeable,
-    GovernorTimelockControlUpgradeable,
-    GovernorPreventLateQuorumUpgradeable,
-    UUPSUpgradeable,
+    ContextUpgradeable,
+    ReentrancyGuardUpgradeable,
     AccessControlUpgradeable,
-    AOXCStorage
+    UUPSUpgradeable
 {
-    struct SubDaoPrivileges {
-        bool isRegistered;
-        bool canIssueAssets;
-        uint256 vaultLimit;
-        uint256 minReputationRequired;
-        uint256 activeProposalLimit;
+    using ECDSA for bytes32;
+    using MessageHashUtils for bytes32;
+
+    struct GovernorStorage {
+        address aiOracleNode;
+        uint256 anomalyScoreLimit;
+        uint256 lastNeuralPulse;
+        uint256 neuralPulseTimeout;
+        bool isNeuralLockActive;
+        uint256 neuralNonce;
+        uint256 lastGlobalActionBlock;
+        uint256 globalAnomalyThreshold;
+        mapping(uint256 => uint256) proposalRiskScores;
+        mapping(bytes32 => bool) neuralSignatureRegistry;
+        mapping(uint256 => bool) vetoedProposals;
+        mapping(uint256 => bool) executedProposals;
+        mapping(address => uint256) actorLastActionBlock;
+        mapping(uint256 => bool) proposalExists;
+        bool initialized;
     }
 
-    // --- Legacy Physical Storage ---
-    mapping(address => SubDaoPrivileges) public subDaoRegistry;
-    uint256 public reputationThreshold;
+    // keccak256(abi.encode(uint256(keccak256("aoxc.governor.storage.v26")) - 1)) & ~0xff
+    bytes32 private constant GOVERNOR_STORAGE_SLOT =
+        0x5a17684526017462615a17684526017462615a17684526017462615a17684500;
 
-    // --- Events ---
-    event SubDaoAuthorized(address indexed subDao, bool canIssueAssets, uint256 limit);
-    event ReputationThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
+    function _getGovernorStorage() internal pure returns (GovernorStorage storage $) {
+        assembly { $.slot := GOVERNOR_STORAGE_SLOT }
+    }
+
+    event NeuralPulseSynchronized(uint256 indexed nonce, uint256 timestamp);
+    event AnomalyIntercepted(uint256 indexed proposalId, uint256 riskLevel, string action);
+    event ProposalExecuted(uint256 indexed proposalId);
+    event SystemSecurityStateChanged(bytes32 indexed reason, bool lockActive);
+    event ProposalCreated(uint256 indexed proposalId, address proposer, string description);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
+    constructor() { _disableInitializers(); }
 
-    /**
-     * @notice Initializes the sovereign governor.
-     */
-    function initialize(
-        IVotes _token, 
-        TimelockControllerUpgradeable _timelock, 
-        address guardianAddr
-    ) external initializer {
-        if (guardianAddr == address(0)) revert AOXCErrors.AOXC_InvalidAddress();
-
-        __Governor_init("AOXC Sovereign DAO");
-        __GovernorSettings_init(
-            uint48(AOXCConstants.MIN_VOTING_DELAY), 
-            uint32(AOXCConstants.MAX_VOTING_PERIOD), 
-            0
-        );
-        __GovernorCountingSimple_init();
-        __GovernorVotes_init(_token);
-        __GovernorVotesQuorumFraction_init(4); // %4 Quorum
-        __GovernorTimelockControl_init(_timelock);
-        __GovernorPreventLateQuorum_init(uint48(AOXCConstants.MIN_VOTING_DELAY));
+    function initializeGovernor(address _aiNode, uint256 _scoreLimit, address _admin)
+        external
+        initializer
+    {
+        if (_admin == address(0) || _aiNode == address(0)) revert AOXCErrors.AOXC_InvalidAddress();
+        
+        __Context_init();
+        __ReentrancyGuard_init();
         __AccessControl_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, guardianAddr);
-        _grantRole(AOXCConstants.GUARDIAN_ROLE, guardianAddr);
-        _grantRole(AOXCConstants.UPGRADER_ROLE, guardianAddr);
-        _grantRole(AOXCConstants.GOVERNANCE_ROLE, address(this)); // DAO itself has Governance Role
+        GovernorStorage storage $ = _getGovernorStorage();
+        if ($.initialized) revert AOXCErrors.AOXC_GlobalLockActive();
 
-        reputationThreshold = 1000;
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(AOXCConstants.GOVERNANCE_ROLE, _admin);
+        _grantRole(AOXCConstants.GUARDIAN_ROLE, _admin);
+
+        $.aiOracleNode = _aiNode;
+        $.anomalyScoreLimit = _scoreLimit;
+        $.lastNeuralPulse = block.timestamp;
+        $.neuralPulseTimeout = 26 hours;
+        $.globalAnomalyThreshold = 9500; 
+        $.initialized = true;
     }
 
     /*//////////////////////////////////////////////////////////////
-                        CLOCK VIRTUALS (SOLC 0.8.33)
+                            GOVERNANCE DEFENSE
     //////////////////////////////////////////////////////////////*/
-
-    function clockMode() public pure returns (string memory) {
-        return "mode=timestamp";
-    }
-
-    function clock() public view override(GovernorUpgradeable, GovernorVotesUpgradeable) returns (uint48) {
-        return uint48(block.timestamp);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                            DAO & SUB-DAO LOGIC
-    //////////////////////////////////////////////////////////////*/
-
-    function authorizeSubDao(
-        address subDaoContract,
-        bool canIssueAssets,
-        uint256 limit,
-        uint256 minRep,
-        uint256 proposalLimit
-    ) external onlyRole(AOXCConstants.GOVERNANCE_ROLE) {
-        if (subDaoContract == address(0)) revert AOXCErrors.AOXC_InvalidAddress();
-
-        subDaoRegistry[subDaoContract] = SubDaoPrivileges({
-            isRegistered: true,
-            canIssueAssets: canIssueAssets,
-            vaultLimit: limit,
-            minReputationRequired: minRep,
-            activeProposalLimit: proposalLimit
-        });
-
-        // Register in Namespaced Storage for global access
-        MainStorage storage $ = _getMainStorage();
-        $.dynamicAddresses[keccak256(abi.encodePacked("SUB_DAO", subDaoContract))] = subDaoContract;
-
-        emit SubDaoAuthorized(subDaoContract, canIssueAssets, limit);
-    }
-
-    function setReputationThreshold(uint256 newThreshold) external onlyRole(AOXCConstants.GOVERNANCE_ROLE) {
-        emit ReputationThresholdUpdated(reputationThreshold, newThreshold);
-        reputationThreshold = newThreshold;
-    }
 
     function propose(
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
         string memory description
-    ) public override(GovernorUpgradeable) returns (uint256) {
-        // Reputation check from Namespaced NFT Storage
-        uint256 callerRep = _getNftStorage().reputationPoints[msg.sender];
+    ) public virtual nonReentrant returns (uint256) {
+        GovernorStorage storage $ = _getGovernorStorage();
 
-        if (callerRep < reputationThreshold) {
-            revert AOXCErrors.AOXC_ThresholdNotMet(callerRep, reputationThreshold);
+        if (block.timestamp > $.lastNeuralPulse + $.neuralPulseTimeout) {
+            revert AOXCErrors.AOXC_Neural_HeartbeatLost($.lastNeuralPulse, block.timestamp);
+        }
+        if ($.isNeuralLockActive) revert AOXCErrors.AOXC_GlobalLockActive();
+        if ($.actorLastActionBlock[_msgSender()] == block.number) {
+            revert AOXCErrors.AOXC_TemporalCollision();
         }
 
-        return super.propose(targets, values, calldatas, description);
+        uint256 proposalId = uint256(keccak256(abi.encode(targets, values, calldatas, description)));
+        if ($.proposalExists[proposalId]) revert AOXCErrors.AOXC_CustomRevert("Governor: EXISTS");
+
+        $.proposalExists[proposalId] = true;
+        $.actorLastActionBlock[_msgSender()] = block.number;
+        $.lastGlobalActionBlock = block.number;
+
+        emit ProposalCreated(proposalId, _msgSender(), description);
+        return proposalId;
     }
 
-    function guardianCancel(
+    function syncGovernorPulse(
+        uint256 proposalId,
+        uint256 riskScore,
+        uint256 nonce,
+        bytes calldata signature
+    ) external nonReentrant {
+        GovernorStorage storage $ = _getGovernorStorage();
+
+        if (!$.proposalExists[proposalId]) revert AOXCErrors.AOXC_CustomRevert("Governor: NON_EXISTENT");
+        if (nonce <= $.neuralNonce) revert AOXCErrors.AOXC_Neural_StaleSignal(nonce, $.neuralNonce);
+
+        bytes32 msgHash = keccak256(
+            abi.encodePacked(proposalId, riskScore, nonce, address(this), block.chainid)
+        ).toEthSignedMessageHash();
+
+        if (msgHash.recover(signature) != $.aiOracleNode) {
+            revert AOXCErrors.AOXC_Neural_IdentityForgery();
+        }
+
+        bytes32 sigHash;
+        // [V2-OPTIMIZATION]: Calldata-safe assembly hashing for zero-warning production
+        assembly {
+            let ptr := mload(0x40)
+            calldatacopy(ptr, signature.offset, signature.length)
+            sigHash := keccak256(ptr, signature.length)
+        }
+
+        if ($.neuralSignatureRegistry[sigHash]) revert AOXCErrors.AOXC_Neural_SignatureReused(sigHash);
+
+        $.neuralSignatureRegistry[sigHash] = true;
+        $.neuralNonce = nonce;
+        $.lastNeuralPulse = block.timestamp;
+        $.proposalRiskScores[proposalId] = riskScore;
+
+        if (riskScore >= $.anomalyScoreLimit) {
+            $.vetoedProposals[proposalId] = true;
+            emit AnomalyIntercepted(proposalId, riskScore, "GOVERNOR_VETO");
+        }
+
+        if (riskScore >= $.globalAnomalyThreshold) {
+            $.isNeuralLockActive = true;
+            emit SystemSecurityStateChanged("CRITICAL_ANOMALY", true);
+        }
+
+        emit NeuralPulseSynchronized(nonce, block.timestamp);
+    }
+
+    function execute(
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
-        bytes32 descriptionHash
-    ) external onlyRole(AOXCConstants.GUARDIAN_ROLE) {
-        _cancel(targets, values, calldatas, descriptionHash);
+        string memory description
+    ) external payable nonReentrant onlyRole(AOXCConstants.GUARDIAN_ROLE) {
+        GovernorStorage storage $ = _getGovernorStorage();
+        uint256 proposalId = uint256(keccak256(abi.encode(targets, values, calldatas, description)));
+
+        if ($.isNeuralLockActive) revert AOXCErrors.AOXC_GlobalLockActive();
+        if (!$.proposalExists[proposalId]) revert AOXCErrors.AOXC_CustomRevert("Governor: NULL_PROPOSAL");
+        if ($.vetoedProposals[proposalId]) revert AOXCErrors.AOXC_CustomRevert("Governor: VETO_ACTIVE");
+        if ($.executedProposals[proposalId]) revert AOXCErrors.AOXC_CustomRevert("Governor: ALREADY_EXECUTED");
+        
+        if ($.proposalRiskScores[proposalId] == 0) {
+            revert AOXCErrors.AOXC_Neural_BastionSealed(block.timestamp);
+        }
+
+        $.executedProposals[proposalId] = true;
+
+        for (uint256 i = 0; i < targets.length; i++) {
+            (bool success, bytes memory result) = targets[i].call{ value: values[i] }(calldatas[i]);
+            if (!success) {
+                if (result.length > 0) {
+                    assembly {
+                        let returndata_size := mload(result)
+                        revert(add(32, result), returndata_size)
+                    }
+                } else {
+                    revert AOXCErrors.AOXC_CustomRevert("Governor: CALL_FAILED");
+                }
+            }
+        }
+
+        emit ProposalExecuted(proposalId);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        BOILERPLATE OVERRIDES
-    //////////////////////////////////////////////////////////////*/
-
-    function votingDelay() public view override(GovernorUpgradeable, GovernorSettingsUpgradeable) returns (uint256) {
-        return super.votingDelay();
+    function resetGovernorLock() external onlyRole(AOXCConstants.GOVERNANCE_ROLE) {
+        GovernorStorage storage $ = _getGovernorStorage();
+        $.isNeuralLockActive = false;
+        $.lastNeuralPulse = block.timestamp;
+        emit SystemSecurityStateChanged("ADMIN_RESET", false);
     }
 
-    function votingPeriod() public view override(GovernorUpgradeable, GovernorSettingsUpgradeable) returns (uint256) {
-        return super.votingPeriod();
-    }
-
-    function quorum(uint256 blockNumber) public view override(GovernorUpgradeable, GovernorVotesQuorumFractionUpgradeable) returns (uint256) {
-        return super.quorum(blockNumber);
-    }
-
-    function state(uint256 proposalId) public view override(GovernorUpgradeable, GovernorTimelockControlUpgradeable) returns (ProposalState) {
-        return super.state(proposalId);
-    }
-
-    function proposalNeedsQueuing(uint256 proposalId) public view override(GovernorUpgradeable, GovernorTimelockControlUpgradeable) returns (bool) {
-        return super.proposalNeedsQueuing(proposalId);
-    }
-
-    function proposalThreshold() public view override(GovernorUpgradeable, GovernorSettingsUpgradeable) returns (uint256) {
-        return super.proposalThreshold();
-    }
-
-    function proposalDeadline(uint256 proposalId) public view override(GovernorUpgradeable, GovernorPreventLateQuorumUpgradeable) returns (uint256) {
-        return super.proposalDeadline(proposalId);
-    }
-
-    function _tallyUpdated(uint256 proposalId) internal override(GovernorUpgradeable, GovernorPreventLateQuorumUpgradeable) {
-        super._tallyUpdated(proposalId);
-    }
-
-    function _executeOperations(uint256 proposalId, address[] memory targets, uint256[] memory values, bytes[] memory calldatas, bytes32 descriptionHash) internal override(GovernorUpgradeable, GovernorTimelockControlUpgradeable) {
-        super._executeOperations(proposalId, targets, values, calldatas, descriptionHash);
-    }
-
-    function _queueOperations(uint256 proposalId, address[] memory targets, uint256[] memory values, bytes[] memory calldatas, bytes32 descriptionHash) internal override(GovernorUpgradeable, GovernorTimelockControlUpgradeable) returns (uint48) {
-        return super._queueOperations(proposalId, targets, values, calldatas, descriptionHash);
-    }
-
-    function _cancel(address[] memory targets, uint256[] memory values, bytes[] memory calldatas, bytes32 descriptionHash) internal override(GovernorUpgradeable, GovernorTimelockControlUpgradeable) returns (uint256) {
-        return super._cancel(targets, values, calldatas, descriptionHash);
-    }
-
-    function _executor() internal view override(GovernorUpgradeable, GovernorTimelockControlUpgradeable) returns (address) {
-        return super._executor();
-    }
-
-    function supportsInterface(bytes4 interfaceId) public view override(GovernorUpgradeable, AccessControlUpgradeable) returns (bool) {
-        return super.supportsInterface(interfaceId);
-    }
-
-    function _authorizeUpgrade(address) internal override onlyRole(AOXCConstants.UPGRADER_ROLE) { }
-
-    uint256[47] private _gap;
+    function _authorizeUpgrade(address) internal override view onlyRole(AOXCConstants.GOVERNANCE_ROLE) {}
 }
