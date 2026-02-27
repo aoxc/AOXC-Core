@@ -23,9 +23,7 @@ interface IAOXCTimelock {
         uint256 delay
     );
 
-    event CallExecuted(
-        bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data
-    );
+    event CallExecuted(bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data);
     event Cancelled(bytes32 indexed id);
     event MinDelayChange(uint256 oldDuration, uint256 newDuration);
 
@@ -57,13 +55,10 @@ interface IAOXCTimelock {
 
     function getTimestamp(bytes32 id) external view returns (uint256 timestamp);
 
-    function hashOperation(
-        address target,
-        uint256 value,
-        bytes calldata data,
-        bytes32 predecessor,
-        bytes32 salt
-    ) external pure returns (bytes32 hash);
+    function hashOperation(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt)
+        external
+        pure
+        returns (bytes32 hash);
 
     /*//////////////////////////////////////////////////////////////
                         NEURAL LOGIC FUNCTIONS
@@ -95,13 +90,9 @@ interface IAOXCTimelock {
      * @notice Executes a scheduled operation that has cleared all neural and temporal hurdles.
      * @dev Layer 26: Final execution gateway.
      */
-    function execute(
-        address target,
-        uint256 value,
-        bytes calldata data,
-        bytes32 predecessor,
-        bytes32 salt
-    ) external payable;
+    function execute(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt)
+        external
+        payable;
 
     /**
      * @notice Cancels a scheduled operation. Restricted to AI-Veto or Guardian intervention.

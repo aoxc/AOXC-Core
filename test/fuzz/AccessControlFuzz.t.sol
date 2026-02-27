@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-import { Test } from "forge-std/Test.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {Test} from "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 /*//////////////////////////////////////////////////////////////
                         AOXC CORE IMPORTS
 //////////////////////////////////////////////////////////////*/
 
 // [FIX]: Updated paths to match the actual file names in AOXC-Core/src
-import { AOXCXLayerSentinel } from "../../src/AOXCXLayerSentinel.sol";
-import { AOXCStaking } from "../../src/AOXC.Stake.sol"; 
-import { AOXCConstants } from "../../src/libraries/AOXCConstants.sol";
+import {AOXCXLayerSentinel} from "../../src/AOXCXLayerSentinel.sol";
+import {AOXCStaking} from "../../src/AOXC.Stake.sol";
+import {AOXCConstants} from "../../src/libraries/AOXCConstants.sol";
 
 /**
  * @title AccessControlFuzz
@@ -29,16 +29,12 @@ contract AccessControlFuzz is Test {
     function setUp() public {
         // Sentinel Deployment
         AOXCXLayerSentinel sentinelImpl = new AOXCXLayerSentinel();
-        bytes memory sentinelData = abi.encodeWithSelector(
-            AOXCXLayerSentinel.initialize.selector, admin, aiNode
-        );
+        bytes memory sentinelData = abi.encodeWithSelector(AOXCXLayerSentinel.initialize.selector, admin, aiNode);
         sentinel = AOXCXLayerSentinel(address(new ERC1967Proxy(address(sentinelImpl), sentinelData)));
 
         // Staking Deployment
         AOXCStaking stakingImpl = new AOXCStaking();
-        bytes memory stakingData = abi.encodeWithSelector(
-            AOXCStaking.initialize.selector, admin, aiNode, token
-        );
+        bytes memory stakingData = abi.encodeWithSelector(AOXCStaking.initialize.selector, admin, aiNode, token);
         staking = AOXCStaking(address(new ERC1967Proxy(address(stakingImpl), stakingData)));
     }
 
@@ -49,10 +45,8 @@ contract AccessControlFuzz is Test {
         vm.assume(attacker != admin);
 
         vm.startPrank(attacker);
-        (bool success, ) = address(sentinel).call(
-            abi.encodeWithSelector(sentinel.emergencyBastionUnlock.selector)
-        );
-        
+        (bool success,) = address(sentinel).call(abi.encodeWithSelector(sentinel.emergencyBastionUnlock.selector));
+
         assertFalse(success, "RBAC-01: Unauthorized Emergency Unlock possible");
         vm.stopPrank();
     }
@@ -64,10 +58,9 @@ contract AccessControlFuzz is Test {
         vm.assume(attacker != admin);
 
         vm.startPrank(attacker);
-        (bool success, ) = address(sentinel).call(
-            abi.encodeWithSelector(sentinel.updateReputation.selector, victim, score)
-        );
-        
+        (bool success,) =
+            address(sentinel).call(abi.encodeWithSelector(sentinel.updateReputation.selector, victim, score));
+
         assertFalse(success, "RBAC-02: Reputation adjustment leakage");
         vm.stopPrank();
     }
@@ -79,10 +72,8 @@ contract AccessControlFuzz is Test {
         vm.assume(attacker != admin && newImpl != address(0));
 
         vm.startPrank(attacker);
-        (bool success, ) = address(staking).call(
-            abi.encodeWithSignature("upgradeToAndCall(address,bytes)", newImpl, "")
-        );
-        
+        (bool success,) = address(staking).call(abi.encodeWithSignature("upgradeToAndCall(address,bytes)", newImpl, ""));
+
         assertFalse(success, "RBAC-03: Unauthorized Upgrade detected");
         vm.stopPrank();
     }

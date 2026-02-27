@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import { PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
-import { AOXCConstants } from "./libraries/AOXCConstants.sol";
-import { AOXCErrors } from "./libraries/AOXCErrors.sol";
+import {AOXCConstants} from "./libraries/AOXCConstants.sol";
+import {AOXCErrors} from "./libraries/AOXCErrors.sol";
 
 /**
  * @title AOXC Sovereign Bridge Infrastructure V2.0.1
@@ -31,36 +31,37 @@ contract AOXCBridge is
     using MessageHashUtils for bytes32;
 
     struct BridgeStorage {
-        address aiSentinel; 
-        address aoxcToken; 
-        uint256 minBridgeQuantum; 
-        uint256 maxBridgeQuantum; 
-        uint256 bridgeFeeBps; 
-        address treasury; 
+        address aiSentinel;
+        address aoxcToken;
+        uint256 minBridgeQuantum;
+        uint256 maxBridgeQuantum;
+        uint256 bridgeFeeBps;
+        address treasury;
         mapping(uint32 => bool) supportedChains;
-        mapping(bytes32 => bool) processedTransfers; 
-        uint256 bridgeNonce; 
+        mapping(bytes32 => bool) processedTransfers;
+        uint256 bridgeNonce;
         bool initialized;
     }
 
-    bytes32 private constant BRIDGE_STORAGE_SLOT =
-        0x56a64487b9f3630f9a2e6840a3597843644f7725845c2794c489b251a3d00700;
+    bytes32 private constant BRIDGE_STORAGE_SLOT = 0x56a64487b9f3630f9a2e6840a3597843644f7725845c2794c489b251a3d00700;
 
     function _getBridgeStorage() internal pure returns (BridgeStorage storage $) {
         assembly { $.slot := BRIDGE_STORAGE_SLOT }
     }
 
-    event AssetMigrationInitiated(address indexed actor, uint256 amount, uint32 indexed targetChainId, bytes32 indexed transferId);
+    event AssetMigrationInitiated(
+        address indexed actor, uint256 amount, uint32 indexed targetChainId, bytes32 indexed transferId
+    );
     event AssetMigrationFinalized(address indexed actor, uint256 amount, bytes32 indexed transferId);
 
-    constructor() { _disableInitializers(); }
+    constructor() {
+        _disableInitializers();
+    }
 
-    function initializeBridge(
-        address governor,
-        address aiNode,
-        address treasuryAddr,
-        address tokenAddr
-    ) external initializer {
+    function initializeBridge(address governor, address aiNode, address treasuryAddr, address tokenAddr)
+        external
+        initializer
+    {
         __AccessControl_init();
         __Pausable_init();
         __ReentrancyGuard_init();
@@ -83,14 +84,14 @@ contract AOXCBridge is
      */
     function bridgeAssets(uint256 amount, uint32 targetChainId) external nonReentrant whenNotPaused {
         BridgeStorage storage $ = _getBridgeStorage();
-        
+
         if (!$.supportedChains[targetChainId]) revert AOXCErrors.AOXC_ChainNotSupported(targetChainId);
         if (amount < $.minBridgeQuantum || amount > $.maxBridgeQuantum) {
             revert AOXCErrors.AOXC_ExceedsMaxTransfer(amount, $.maxBridgeQuantum);
         }
 
         uint256 nonce = $.bridgeNonce++;
-        
+
         // [V2.0.1-OPTIMIZATION]: Memory-efficient assembly hashing
         bytes32 transferId;
         bytes memory data = abi.encode(msg.sender, amount, targetChainId, nonce, block.chainid);
@@ -118,19 +119,18 @@ contract AOXCBridge is
         bytes calldata neuralProof
     ) external nonReentrant whenNotPaused {
         BridgeStorage storage $ = _getBridgeStorage();
-        
+
         if ($.processedTransfers[transferId]) revert AOXCErrors.AOXC_Neural_SignatureReused(transferId);
 
-        bytes32 msgHash = keccak256(
-            abi.encode(actor, amount, transferId, sourceChainId, address(this), block.chainid)
-        ).toEthSignedMessageHash();
+        bytes32 msgHash = keccak256(abi.encode(actor, amount, transferId, sourceChainId, address(this), block.chainid))
+            .toEthSignedMessageHash();
 
         if (msgHash.recover(neuralProof) != $.aiSentinel) {
             revert AOXCErrors.AOXC_Neural_IdentityForgery();
         }
 
         $.processedTransfers[transferId] = true;
-        
+
         uint256 balance = IERC20($.aoxcToken).balanceOf(address(this));
         if (balance < amount) revert AOXCErrors.AOXC_InsufficientBalance(balance, amount);
 
@@ -142,8 +142,13 @@ contract AOXCBridge is
         _getBridgeStorage().supportedChains[chainId] = status;
     }
 
-    function pause() external onlyRole(AOXCConstants.GOVERNANCE_ROLE) { _pause(); }
-    function unpause() external onlyRole(AOXCConstants.GOVERNANCE_ROLE) { _unpause(); }
+    function pause() external onlyRole(AOXCConstants.GOVERNANCE_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(AOXCConstants.GOVERNANCE_ROLE) {
+        _unpause();
+    }
 
     function _authorizeUpgrade(address) internal override onlyRole(AOXCConstants.GOVERNANCE_ROLE) {}
 }

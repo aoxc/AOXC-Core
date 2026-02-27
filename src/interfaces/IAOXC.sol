@@ -22,15 +22,8 @@ interface IAOXC {
     /**
      * @notice Allows token approval via signature (EIP-2612).
      */
-    function permit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external;
 
     function nonces(address owner) external view returns (uint256);
 
@@ -55,8 +48,7 @@ interface IAOXC {
      * @param nonce Security nonce to prevent replay attacks.
      * @param signature ECDSA proof from the authorized AI Sentinel node.
      */
-    function processNeuralSignal(uint256 riskScore, uint256 nonce, bytes calldata signature)
-        external;
+    function processNeuralSignal(uint256 riskScore, uint256 nonce, bytes calldata signature) external;
 
     /**
      * @notice Returns the status of the 26-Hour Autonomous Circuit Breaker.
@@ -69,8 +61,7 @@ interface IAOXC {
      * @notice Dual-Factor Asset Restitution (Clawback) for high-risk anomalies.
      * @dev Only executable via a combination of AI Verification and Compliance authorization.
      */
-    function sovereignClawback(address from, address to, uint256 amount, bytes calldata aiSignature)
-        external;
+    function sovereignClawback(address from, address to, uint256 amount, bytes calldata aiSignature) external;
 
     /**
      * @notice Verifies the liveness of the Neural Pulse (Heartbeat).

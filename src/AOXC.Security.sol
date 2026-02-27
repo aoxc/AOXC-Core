@@ -1,25 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-import { AccessManagerUpgradeable } from "@openzeppelin/contracts-upgradeable/access/manager/AccessManagerUpgradeable.sol";
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {
+    AccessManagerUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/manager/AccessManagerUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
-import { AOXCConstants } from "./libraries/AOXCConstants.sol";
-import { AOXCErrors } from "./libraries/AOXCErrors.sol";
+import {AOXCConstants} from "./libraries/AOXCConstants.sol";
+import {AOXCErrors} from "./libraries/AOXCErrors.sol";
 
 /**
  * @title AOXCSecurityRegistry V2.0.1
  * @notice Central Nervous System (CNS) for AI-Driven Security Enforcement.
  * @dev [V2.0.1-OPTIMIZED]: Fully compliant with calldata-safe assembly hashing.
  */
-contract AOXCSecurityRegistry is
-    Initializable,
-    AccessManagerUpgradeable,
-    UUPSUpgradeable
-{
+contract AOXCSecurityRegistry is Initializable, AccessManagerUpgradeable, UUPSUpgradeable {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
 
@@ -38,8 +36,7 @@ contract AOXCSecurityRegistry is
         bool initialized;
     }
 
-    bytes32 private constant SECURITY_STORAGE_SLOT =
-        0x487f909192518e932e49c95d97f9c733f5244510065090176d6c703126780a00;
+    bytes32 private constant SECURITY_STORAGE_SLOT = 0x487f909192518e932e49c95d97f9c733f5244510065090176d6c703126780a00;
 
     function _getNeural() internal pure returns (NeuralSecurityStorage storage $) {
         assembly { $.slot := SECURITY_STORAGE_SLOT }
@@ -50,11 +47,13 @@ contract AOXCSecurityRegistry is
     event SubDaoQuarantined(address indexed target, uint256 expiry);
     event NeuralHeartbeatUpdated(uint256 timestamp);
 
-    constructor() { _disableInitializers(); }
+    constructor() {
+        _disableInitializers();
+    }
 
     function initializeApex(address initialAdmin, address aiNode) public initializer {
         if (initialAdmin == address(0) || aiNode == address(0)) revert AOXCErrors.AOXC_InvalidAddress();
-        
+
         __AccessManager_init(initialAdmin);
 
         NeuralSecurityStorage storage $ = _getNeural();
@@ -84,10 +83,10 @@ contract AOXCSecurityRegistry is
         assembly {
             actionHash := keccak256(add(actionBytes, 32), mload(actionBytes))
         }
-        
-        return keccak256(
-            abi.encode(actionHash, risk, target, nonce, address(this), block.chainid)
-        ).toEthSignedMessageHash();
+
+        return
+            keccak256(abi.encode(actionHash, risk, target, nonce, address(this), block.chainid))
+                .toEthSignedMessageHash();
     }
 
     function triggerGlobalEmergency(uint256 riskScore, bytes calldata aiSignature) external {
@@ -107,14 +106,11 @@ contract AOXCSecurityRegistry is
         emit GlobalKillSwitchActivated(block.number, riskScore);
     }
 
-    function triggerSubDaoNeuralLock(
-        address subDao,
-        uint256 riskScore,
-        uint256 duration,
-        bytes calldata aiSignature
-    ) external {
+    function triggerSubDaoNeuralLock(address subDao, uint256 riskScore, uint256 duration, bytes calldata aiSignature)
+        external
+    {
         NeuralSecurityStorage storage $ = _getNeural();
-        
+
         if (duration > AOXCConstants.AI_MAX_FREEZE_DURATION) {
             duration = AOXCConstants.AI_MAX_FREEZE_DURATION;
         }
@@ -136,10 +132,10 @@ contract AOXCSecurityRegistry is
     function emergencySystemReset() external {
         _checkAoxcRole(AOXCConstants.GOVERNANCE_ROLE, msg.sender);
         NeuralSecurityStorage storage $ = _getNeural();
-        
+
         $.isGlobalKillSwitchActive = false;
-        $.lastNeuralPulse = block.timestamp; 
-        
+        $.lastNeuralPulse = block.timestamp;
+
         emit GlobalSystemRestored(msg.sender);
     }
 
@@ -149,7 +145,7 @@ contract AOXCSecurityRegistry is
 
     function _verifyAiSignature(bytes32 hash, bytes calldata sig) internal {
         NeuralSecurityStorage storage $ = _getNeural();
-        
+
         bytes32 sigId;
         // [V2.0.1]: Calldata-safe assembly for signature replay protection
         assembly {
@@ -157,11 +153,11 @@ contract AOXCSecurityRegistry is
             calldatacopy(ptr, sig.offset, sig.length)
             sigId := keccak256(ptr, sig.length)
         }
-        
+
         if ($.processedNeuralSignals[sigId]) {
             revert AOXCErrors.AOXC_Neural_SignatureReused(sigId);
         }
-        
+
         if (hash.recover(sig) != $.aiSentinelNode) revert AOXCErrors.AOXC_Neural_IdentityForgery();
 
         $.processedNeuralSignals[sigId] = true;
@@ -176,7 +172,7 @@ contract AOXCSecurityRegistry is
         if (!isMember) revert AOXCErrors.AOXC_Unauthorized(roleName, account);
     }
 
-    function _authorizeUpgrade(address) internal override view {
+    function _authorizeUpgrade(address) internal view override {
         _checkAoxcRole(AOXCConstants.GOVERNANCE_ROLE, msg.sender);
     }
 
@@ -185,7 +181,7 @@ contract AOXCSecurityRegistry is
 
         if ($.isGlobalKillSwitchActive) return false;
         if (block.timestamp > $.lastNeuralPulse + $.neuralPulseTimeout) return false;
-        
+
         if ($.subDaoEmergencyLocks[subDaoTarget]) {
             if (block.timestamp < $.subDaoQuarantineExpiries[subDaoTarget]) {
                 return false;

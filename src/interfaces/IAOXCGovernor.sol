@@ -38,9 +38,7 @@ interface IAOXCGovernor {
         string description
     );
 
-    event VoteCast(
-        address indexed voter, uint256 proposalId, uint8 support, uint256 weight, string reason
-    );
+    event VoteCast(address indexed voter, uint256 proposalId, uint8 support, uint256 weight, string reason);
     event ProposalExecuted(uint256 indexed proposalId);
     event ProposalQueued(uint256 indexed proposalId, uint256 eta);
 
@@ -69,10 +67,7 @@ interface IAOXCGovernor {
     /**
      * @notice Layer 23: Returns the status of the 26-Hour Sovereignty Lockdown.
      */
-    function getGovernanceLockdownState()
-        external
-        view
-        returns (bool isLocked, uint256 timeRemaining);
+    function getGovernanceLockdownState() external view returns (bool isLocked, uint256 timeRemaining);
 
     /*//////////////////////////////////////////////////////////////
                         CORE NEURAL OPERATIONS
@@ -92,12 +87,9 @@ interface IAOXCGovernor {
     /**
      * @notice Forces an operation into the Timelock Bastion after reaching neural consensus.
      */
-    function queue(
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory calldatas,
-        bytes32 descriptionHash
-    ) external returns (uint256 proposalId);
+    function queue(address[] memory targets, uint256[] memory values, bytes[] memory calldatas, bytes32 descriptionHash)
+        external
+        returns (uint256 proposalId);
 
     /**
      * @notice Finalizes execution after the 26-day neural dilation period has expired.
@@ -116,8 +108,7 @@ interface IAOXCGovernor {
      * @param riskScore The score that triggered the veto (>= 9000).
      * @param aiSignature Cryptographic proof signed by the AI Sentinel node.
      */
-    function processNeuralVeto(uint256 proposalId, uint256 riskScore, bytes calldata aiSignature)
-        external;
+    function processNeuralVeto(uint256 proposalId, uint256 riskScore, bytes calldata aiSignature) external;
 
     /*//////////////////////////////////////////////////////////////
                                 VOTING ENGINE

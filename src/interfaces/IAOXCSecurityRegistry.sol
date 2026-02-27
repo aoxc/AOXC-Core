@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-import { IAccessManager } from "@openzeppelin/contracts/access/manager/IAccessManager.sol";
+import {IAccessManager} from "@openzeppelin/contracts/access/manager/IAccessManager.sol";
 
 /**
  * @title IAOXCSecurityRegistry Sovereign Interface V2.6
@@ -62,8 +62,7 @@ interface IAOXCSecurityRegistry is IAccessManager {
      * @param riskScore The predictive anomaly score provided by the AI (scaled 0-10000).
      * @param signature Cryptographic ECDSA proof from the authorized AI Sentinel Node.
      */
-    function triggerNeuralQuarantine(address target, uint256 riskScore, bytes calldata signature)
-        external;
+    function triggerNeuralQuarantine(address target, uint256 riskScore, bytes calldata signature) external;
 
     /**
      * @notice Resumes protocol operations after a successful audit or the 26-hour auto-release period.

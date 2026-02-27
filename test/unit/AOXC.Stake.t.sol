@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-import { Test } from "forge-std/Test.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Test} from "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /*//////////////////////////////////////////////////////////////
                         AOXC CORE IMPORTS
 //////////////////////////////////////////////////////////////*/
 
-import { AOXCStaking } from "../../src/AOXC.Stake.sol";
-import { AOXCErrors } from "../../src/libraries/AOXCErrors.sol";
-import { AOXCConstants } from "../../src/libraries/AOXCConstants.sol";
+import {AOXCStaking} from "../../src/AOXC.Stake.sol";
+import {AOXCErrors} from "../../src/libraries/AOXCErrors.sol";
+import {AOXCConstants} from "../../src/libraries/AOXCConstants.sol";
 
 /**
  * @title MockAOXC
@@ -49,17 +49,16 @@ contract AOXCStakingTest is Test {
     function setUp() public {
         aiSentinel = vm.addr(AI_PK);
         token = new MockAOXC();
-        
+
         AOXCStaking implementation = new AOXCStaking();
-        bytes memory initData = abi.encodeWithSelector(
-            AOXCStaking.initialize.selector, admin, aiSentinel, address(token)
-        );
+        bytes memory initData =
+            abi.encodeWithSelector(AOXCStaking.initialize.selector, admin, aiSentinel, address(token));
         staking = AOXCStaking(address(new ERC1967Proxy(address(implementation), initData)));
 
         // [V2-FIX]: Unchecked transfer warning resolved
         bool success = token.transfer(user, 100_000 * 1e18);
         assertTrue(success, "Setup: Initial funding failed");
-        
+
         vm.startPrank(user);
         token.approve(address(staking), type(uint256).max);
         vm.stopPrank();
@@ -68,12 +67,12 @@ contract AOXCStakingTest is Test {
     /**
      * @dev Internal helper to match ASM hashing layout.
      */
-    function _getNeuralStakeSig(address actor, uint256 amt, uint256 dur, uint256 nonce) 
-        internal view returns (bytes memory) 
+    function _getNeuralStakeSig(address actor, uint256 amt, uint256 dur, uint256 nonce)
+        internal
+        view
+        returns (bytes memory)
     {
-        bytes32 innerHash = keccak256(abi.encode(
-            actor, amt, dur, nonce, address(staking), block.chainid
-        ));
+        bytes32 innerHash = keccak256(abi.encode(actor, amt, dur, nonce, address(staking), block.chainid));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(AI_PK, innerHash.toEthSignedMessageHash());
         return abi.encodePacked(r, s, v);
     }
@@ -84,7 +83,7 @@ contract AOXCStakingTest is Test {
 
     function test_Sovereign_Stake_Flow() public {
         uint256 amount = 1000 * 1e18;
-        uint256 duration = 30 days; 
+        uint256 duration = 30 days;
         bytes memory sig = _getNeuralStakeSig(user, amount, duration, 0);
 
         vm.prank(user);
@@ -108,7 +107,7 @@ contract AOXCStakingTest is Test {
         vm.roll(block.number + 1);
 
         // Expect revert: Nonce or signature already processed
-        vm.expectRevert(); 
+        vm.expectRevert();
         staking.stakeSovereign(amount, duration, sig);
         vm.stopPrank();
     }
@@ -127,14 +126,14 @@ contract AOXCStakingTest is Test {
         // Attempt withdrawal just before lock expiry
         vm.warp(block.timestamp + duration - 1 hours);
         vm.prank(user);
-        vm.expectRevert(); 
+        vm.expectRevert();
         staking.withdrawSovereign(0);
 
         // Successful withdrawal after expiry
         vm.warp(block.timestamp + 2 hours);
         vm.prank(user);
         staking.withdrawSovereign(0);
-        
+
         assertEq(token.balanceOf(address(staking)), 0, "L5: Vault liquidation error");
     }
 

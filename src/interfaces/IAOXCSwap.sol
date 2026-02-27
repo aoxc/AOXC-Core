@@ -41,12 +41,7 @@ interface IAOXCSwap {
      * @param tokenOut Destination token address.
      * @param aiSignature Cryptographic proof from AI Sentinel verifying the trade's legitimacy.
      */
-    function sovereignSwap(
-        uint256 amountIn,
-        address tokenIn,
-        address tokenOut,
-        bytes calldata aiSignature
-    ) external;
+    function sovereignSwap(uint256 amountIn, address tokenIn, address tokenOut, bytes calldata aiSignature) external;
 
     /**
      * @notice Petrifies (permanently locks) liquidity to strengthen the Sovereign Floor.
@@ -70,10 +65,7 @@ interface IAOXCSwap {
     /**
      * @notice Returns the real-time health metrics of the AOXC sovereign market.
      */
-    function metrics()
-        external
-        view
-        returns (uint256 floorPrice, uint256 totalPetrified, bool selfHealingActive);
+    function metrics() external view returns (uint256 floorPrice, uint256 totalPetrified, bool selfHealingActive);
 
     /**
      * @notice Layer 12: Returns the AI-integrated price oracle responsible for market feed.

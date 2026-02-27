@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import { AOXCStorage } from "./abstract/AOXCStorage.sol";
-import { AOXCConstants } from "./libraries/AOXCConstants.sol";
-import { AOXCErrors } from "./libraries/AOXCErrors.sol";
+import {AOXCStorage} from "./abstract/AOXCStorage.sol";
+import {AOXCConstants} from "./libraries/AOXCConstants.sol";
+import {AOXCErrors} from "./libraries/AOXCErrors.sol";
 
 interface IPriceOracle {
     function getConsensusPrice(address token) external view returns (uint256);
@@ -23,17 +23,11 @@ interface IPriceOracle {
  * @notice 26-Layer Sovereign Swap Engine with Neural Price Validation.
  * @dev [V2-FIX]: Resolved OZ v5 UUPS init and optimized oracle validation flow.
  */
-contract AOXCSwap is
-    Initializable,
-    AccessControlUpgradeable,
-    UUPSUpgradeable,
-    ReentrancyGuardUpgradeable,
-    AOXCStorage
-{
+contract AOXCSwap is Initializable, AccessControlUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable, AOXCStorage {
     using SafeERC20 for IERC20;
 
     struct ApexSwapStorage {
-        uint256 totalPetrifiedLiquidity; 
+        uint256 totalPetrifiedLiquidity;
         uint256 maxPriceDeviationBps;
         bool isCircuitBreakerTripped;
         uint256 lastSecurityPulse;
@@ -46,18 +40,21 @@ contract AOXCSwap is
     }
 
     // keccak256(abi.encode(uint256(keccak256("aoxc.v2.swap.storage")) - 1)) & ~0xff
-    bytes32 private constant SWAP_STORAGE_SLOT =
-        0x487f909192518e932e49c95d97f9c733f5244510065090176d6c703126780a00;
+    bytes32 private constant SWAP_STORAGE_SLOT = 0x487f909192518e932e49c95d97f9c733f5244510065090176d6c703126780a00;
 
     function _getApex() internal pure returns (ApexSwapStorage storage $) {
         assembly { $.slot := SWAP_STORAGE_SLOT }
     }
 
     event ApexCircuitBreaker(address indexed instigator, string reason);
-    event SovereignSwapExecuted(address indexed actor, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut);
+    event SovereignSwapExecuted(
+        address indexed actor, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut
+    );
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() { _disableInitializers(); }
+    constructor() {
+        _disableInitializers();
+    }
 
     function initialize(address governor, address _oracle, address _treasury) external initializer {
         __AccessControl_init();
@@ -91,7 +88,8 @@ contract AOXCSwap is
 
         if ($.isCircuitBreakerTripped) revert AOXCErrors.AOXC_GlobalLockActive();
 
-        if ($.lastLiquidityUpdateBlock[tokenIn] == block.number || $.lastLiquidityUpdateBlock[tokenOut] == block.number) {
+        if ($.lastLiquidityUpdateBlock[tokenIn] == block.number || $.lastLiquidityUpdateBlock[tokenOut] == block.number)
+        {
             revert AOXCErrors.AOXC_TemporalCollision();
         }
 
@@ -121,14 +119,12 @@ contract AOXCSwap is
                             SWAP EXECUTION
     //////////////////////////////////////////////////////////////*/
 
-    function executeApexSwap(
-        uint256 amountIn,
-        address tokenIn,
-        address tokenOut,
-        uint256 minAmountOut
-    ) external nonReentrant {
+    function executeApexSwap(uint256 amountIn, address tokenIn, address tokenOut, uint256 minAmountOut)
+        external
+        nonReentrant
+    {
         _validateOmnipotence(tokenIn, tokenOut);
-        
+
         ApexSwapStorage storage $ = _getApex();
         MainStorage storage main = _getMainStorage();
 
@@ -150,12 +146,7 @@ contract AOXCSwap is
         _performSovereignExchange(tokenIn, tokenOut, amountIn, minAmountOut);
     }
 
-    function _performSovereignExchange(
-        address inT, 
-        address outT, 
-        uint256 amtIn, 
-        uint256 minOut
-    ) internal {
+    function _performSovereignExchange(address inT, address outT, uint256 amtIn, uint256 minOut) internal {
         ApexSwapStorage storage $ = _getApex();
         IERC20(inT).safeTransferFrom(msg.sender, $.sovereignTreasury, amtIn);
         emit SovereignSwapExecuted(msg.sender, inT, outT, amtIn, minOut);
@@ -169,5 +160,5 @@ contract AOXCSwap is
         _getApex().totalPetrifiedLiquidity = newAmount;
     }
 
-    function _authorizeUpgrade(address) internal override view onlyRole(AOXCConstants.GOVERNANCE_ROLE) {}
+    function _authorizeUpgrade(address) internal view override onlyRole(AOXCConstants.GOVERNANCE_ROLE) {}
 }

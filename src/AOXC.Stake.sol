@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
-import { AOXCStorage } from "./abstract/AOXCStorage.sol";
-import { AOXCConstants } from "./libraries/AOXCConstants.sol";
-import { AOXCErrors } from "./libraries/AOXCErrors.sol";
+import {AOXCStorage} from "./abstract/AOXCStorage.sol";
+import {AOXCConstants} from "./libraries/AOXCConstants.sol";
+import {AOXCErrors} from "./libraries/AOXCErrors.sol";
 
 /**
  * @title AOXC Sovereign Staking V2.0.1
@@ -35,7 +35,9 @@ contract AOXCStaking is
     event NeuralVerificationConfirmed(address indexed actor, uint256 userNonce);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() { _disableInitializers(); }
+    constructor() {
+        _disableInitializers();
+    }
 
     function initialize(address governor, address aiNode, address token) external initializer {
         __AccessControl_init();
@@ -63,16 +65,13 @@ contract AOXCStaking is
                             STAKING LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function stakeSovereign(uint256 amount, uint256 duration, bytes calldata proof)
-        external
-        nonReentrant
-    {
+    function stakeSovereign(uint256 amount, uint256 duration, bytes calldata proof) external nonReentrant {
         MainStorage storage main = _getMainStorage();
         StakingStorage storage stake = _getStakingStorage();
 
         // [V2-FIX]: Error naming aligned with AOXCErrors library convention
         if (main.isSovereignSealed) revert AOXCErrors.AOXC_GlobalLockActive();
-        
+
         if (stake.lastActionBlock[msg.sender] == block.number) {
             revert AOXCErrors.AOXC_TemporalCollision();
         }
@@ -85,7 +84,7 @@ contract AOXCStaking is
         _verifyNeuralPulse(main, amount, duration, proof);
 
         uint256 index = stake.userStakes[msg.sender].length;
-        
+
         // Reputation Gain Calculation
         uint256 reputationGain = (amount * duration) / 1 days;
         main.userReputation[msg.sender] += reputationGain;
@@ -94,12 +93,7 @@ contract AOXCStaking is
         stake.lastActionBlock[msg.sender] = block.number;
 
         stake.userStakes[msg.sender].push(
-            StakePosition({
-                amount: amount,
-                startTime: block.timestamp,
-                lockDuration: duration,
-                active: true
-            })
+            StakePosition({amount: amount, startTime: block.timestamp, lockDuration: duration, active: true})
         );
 
         IERC20(main.aoxcToken).safeTransferFrom(msg.sender, address(this), amount);
@@ -123,7 +117,7 @@ contract AOXCStaking is
         }
 
         uint256 amount = pos.amount;
-        
+
         pos.active = false;
         pos.amount = 0;
         stake.totalValueLocked -= amount;
@@ -137,19 +131,13 @@ contract AOXCStaking is
                             INTERNAL SECURITY
     //////////////////////////////////////////////////////////////*/
 
-    function _verifyNeuralPulse(
-        MainStorage storage main,
-        uint256 amt,
-        uint256 dur,
-        bytes calldata sig
-    ) internal {
+    function _verifyNeuralPulse(MainStorage storage main, uint256 amt, uint256 dur, bytes calldata sig) internal {
         // [V2-FIX]: Aligned error name with library
         if (sig.length != 65) revert AOXCErrors.AOXC_Neural_IdentityForgery();
-        
+
         uint256 nonce = main.neuralNonce;
-        bytes32 msgHash = keccak256(
-            abi.encode(msg.sender, amt, dur, nonce, address(this), block.chainid)
-        ).toEthSignedMessageHash();
+        bytes32 msgHash =
+            keccak256(abi.encode(msg.sender, amt, dur, nonce, address(this), block.chainid)).toEthSignedMessageHash();
 
         if (msgHash.recover(sig) != main.aiSentinelNode) {
             revert AOXCErrors.AOXC_Neural_IdentityForgery();
@@ -157,13 +145,9 @@ contract AOXCStaking is
 
         main.neuralNonce++;
         main.lastNeuralPulse = block.timestamp;
-        
+
         emit NeuralVerificationConfirmed(msg.sender, main.neuralNonce);
     }
 
-    function _authorizeUpgrade(address)
-        internal
-        override
-        onlyRole(AOXCConstants.GOVERNANCE_ROLE)
-    {}
+    function _authorizeUpgrade(address) internal override onlyRole(AOXCConstants.GOVERNANCE_ROLE) {}
 }

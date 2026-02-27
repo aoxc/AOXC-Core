@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-import { Test } from "forge-std/Test.sol";
-import { AOXC } from "../../../src/AOXC.sol";
-import { AOXCStaking } from "../../../src/AOXC.Stake.sol";
-import { AOXCSwap } from "../../../src/AOXC.Swap.sol";
-import { AOXCTreasury } from "../../../src/AOXCTreasury.sol";
-import { AOXCConstants } from "../../../src/libraries/AOXCConstants.sol";
+import {Test} from "forge-std/Test.sol";
+import {AOXC} from "../../../src/AOXC.sol";
+import {AOXCStaking} from "../../../src/AOXC.Stake.sol";
+import {AOXCSwap} from "../../../src/AOXC.Swap.sol";
+import {AOXCTreasury} from "../../../src/AOXCTreasury.sol";
+import {AOXCConstants} from "../../../src/libraries/AOXCConstants.sol";
 
 /**
  * @title AOXCHandler
@@ -49,7 +49,7 @@ contract AOXCHandler is Test {
         vm.prank(address(this));
         try aoxc.mint(address(this), amount) {
             totalMinted += amount;
-        } catch { }
+        } catch {}
     }
 
     /**
@@ -64,7 +64,7 @@ contract AOXCHandler is Test {
         amount = bound(amount, 0, balance);
 
         vm.prank(address(this));
-        try aoxc.transfer(to, amount) { } catch { }
+        try aoxc.transfer(to, amount) {} catch {}
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -87,7 +87,7 @@ contract AOXCHandler is Test {
         // We use empty bytes to test internal revert or success logic
         try treasury.withdrawErc20(address(aoxc), address(this), amount, hex"00") {
             totalWithdrawn += amount;
-        } catch { }
+        } catch {}
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -102,12 +102,11 @@ contract AOXCHandler is Test {
         if (balance < 1e18) return;
 
         amount = bound(amount, 1e18, balance);
-        duration =
-            bound(duration, AOXCConstants.MIN_TIMELOCK_DELAY, AOXCConstants.MAX_TIMELOCK_DELAY);
+        duration = bound(duration, AOXCConstants.MIN_TIMELOCK_DELAY, AOXCConstants.MAX_TIMELOCK_DELAY);
 
         vm.startPrank(address(this));
         aoxc.approve(address(staking), amount);
-        try staking.stakeSovereign(amount, duration, hex"00") { } catch { }
+        try staking.stakeSovereign(amount, duration, hex"00") {} catch {}
         vm.stopPrank();
     }
 
@@ -118,8 +117,7 @@ contract AOXCHandler is Test {
         amount = bound(amount, 0, address(this).balance);
         if (amount == 0) return;
 
-        (bool success,) =
-            address(treasury).call{ value: amount }(abi.encodeWithSignature("deposit()"));
+        (bool success,) = address(treasury).call{value: amount}(abi.encodeWithSignature("deposit()"));
         require(success, "Deposit failed");
     }
 }

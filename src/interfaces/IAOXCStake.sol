@@ -24,12 +24,8 @@ interface IAOXCStake {
                                 TELEMETRY
     //////////////////////////////////////////////////////////////*/
 
-    event Staked(
-        address indexed user, uint256 indexed stakeIndex, uint256 amount, uint256 duration
-    );
-    event Withdrawn(
-        address indexed user, uint256 amountReturned, uint256 amountBurned, bool isEarly
-    );
+    event Staked(address indexed user, uint256 indexed stakeIndex, uint256 amount, uint256 duration);
+    event Withdrawn(address indexed user, uint256 amountReturned, uint256 amountBurned, bool isEarly);
     event NeuralBoostApplied(address indexed user, uint256 boostFactor);
     event RewardRateUpdated(uint256 oldRate, uint256 newRate);
 

@@ -36,8 +36,7 @@ interface IAOXCTreasury {
      * @param amount Token amount to release.
      * @param aiSignature Cryptographic proof from the AI Sentinel for high-magnitude transfers.
      */
-    function withdrawErc20(address token, address to, uint256 amount, bytes calldata aiSignature)
-        external;
+    function withdrawErc20(address token, address to, uint256 amount, bytes calldata aiSignature) external;
 
     /**
      * @notice Withdraws Native ETH within the sovereign 6% annual limit.

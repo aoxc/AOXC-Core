@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
-import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {
+    TimelockControllerUpgradeable
+} from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
-import { AOXCConstants } from "./libraries/AOXCConstants.sol";
-import { AOXCErrors } from "./libraries/AOXCErrors.sol";
+import {AOXCConstants} from "./libraries/AOXCConstants.sol";
+import {AOXCErrors} from "./libraries/AOXCErrors.sol";
 
 /**
  * @title AOXCTimelock V2.0.1
@@ -24,13 +26,12 @@ contract AOXCTimelock is TimelockControllerUpgradeable, UUPSUpgradeable {
         uint256 neuralNonce;
         uint256 maxNeuralDelay;
         uint256 lastSentinelPulse;
-        mapping(bytes32 => bool) neuralSignatureRegistry; 
+        mapping(bytes32 => bool) neuralSignatureRegistry;
         mapping(address => uint256) targetSecurityTier;
         bool initialized;
     }
 
-    bytes32 private constant TIMELOCK_STORAGE_SLOT = 
-        0x8898951034f77c862137699d690a4833f5244510065090176d6c703126780a00;
+    bytes32 private constant TIMELOCK_STORAGE_SLOT = 0x8898951034f77c862137699d690a4833f5244510065090176d6c703126780a00;
 
     function _getNeural() internal pure returns (NeuralTimelockStorage storage $) {
         assembly { $.slot := TIMELOCK_STORAGE_SLOT }
@@ -39,7 +40,9 @@ contract AOXCTimelock is TimelockControllerUpgradeable, UUPSUpgradeable {
     event AISovereignVeto(bytes32 indexed operationId, string reason);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() { _disableInitializers(); }
+    constructor() {
+        _disableInitializers();
+    }
 
     function initializeApex(
         uint256 minDelay,
@@ -72,7 +75,7 @@ contract AOXCTimelock is TimelockControllerUpgradeable, UUPSUpgradeable {
      */
     function neuralVeto(bytes32 id, bytes calldata signature) external {
         NeuralTimelockStorage storage $ = _getNeural();
-        
+
         bytes32 sigHash;
         // [V2-FIX]: Calldata elements accessed via .offset and .length
         assembly {
@@ -85,9 +88,8 @@ contract AOXCTimelock is TimelockControllerUpgradeable, UUPSUpgradeable {
             revert AOXCErrors.AOXC_Neural_SignatureReused(sigHash);
         }
 
-        bytes32 msgHash = keccak256(
-            abi.encode(id, $.neuralNonce, address(this), block.chainid)
-        ).toEthSignedMessageHash();
+        bytes32 msgHash =
+            keccak256(abi.encode(id, $.neuralNonce, address(this), block.chainid)).toEthSignedMessageHash();
 
         if (msgHash.recover(signature) != $.aiOracleNode) {
             revert AOXCErrors.AOXC_Neural_IdentityForgery();
@@ -95,9 +97,9 @@ contract AOXCTimelock is TimelockControllerUpgradeable, UUPSUpgradeable {
 
         $.neuralSignatureRegistry[sigHash] = true;
         $.neuralNonce++;
-        
-        cancel(id); 
-        
+
+        cancel(id);
+
         emit AISovereignVeto(id, "Neural Sentinel Intervention");
     }
 
@@ -130,7 +132,7 @@ contract AOXCTimelock is TimelockControllerUpgradeable, UUPSUpgradeable {
         _getNeural().targetSecurityTier[target] = minDelay;
     }
 
-    function _authorizeUpgrade(address) internal override view {
+    function _authorizeUpgrade(address) internal view override {
         if (msg.sender != address(this)) {
             revert AOXCErrors.AOXC_Unauthorized(AOXCConstants.GOVERNANCE_ROLE, msg.sender);
         }

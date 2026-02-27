@@ -13,16 +13,10 @@ interface IAOXCBridge {
     //////////////////////////////////////////////////////////////*/
 
     event CrossChainSent(
-        uint16 indexed dstChainId,
-        address indexed from,
-        address indexed to,
-        uint256 amount,
-        bytes32 messageId
+        uint16 indexed dstChainId, address indexed from, address indexed to, uint256 amount, bytes32 messageId
     );
 
-    event CrossChainReceived(
-        uint16 indexed srcChainId, address indexed to, uint256 amount, bytes32 messageId
-    );
+    event CrossChainReceived(uint16 indexed srcChainId, address indexed to, uint256 amount, bytes32 messageId);
 
     /**
      * @notice Emitted when the AI Sentinel detects and blocks a suspicious bridge attempt.
@@ -74,20 +68,14 @@ interface IAOXCBridge {
     /**
      * @notice Layer 12: Estimates the gas fee required for bridgeOut.
      */
-    function quoteBridgeFee(uint16 _dstChainId, uint256 _amount)
-        external
-        view
-        returns (uint256 nativeFee);
+    function quoteBridgeFee(uint16 _dstChainId, uint256 _amount) external view returns (uint256 nativeFee);
 
     /**
      * @notice Layer 9: Magnitude Barrier enforcement.
      * @dev Prevents total liquidity drain by limiting daily cross-chain volume per chain.
      * @return remaining The remaining token amount allowed to be bridged today.
      */
-    function getRemainingLimit(uint16 _chainId, bool isOut)
-        external
-        view
-        returns (uint256 remaining);
+    function getRemainingLimit(uint16 _chainId, bool isOut) external view returns (uint256 remaining);
 
     /**
      * @notice Layer 5: Checks if a specific chain ID is whitelisted within the Sovereign Mesh.

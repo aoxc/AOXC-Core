@@ -1,16 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-import { Test } from "forge-std/Test.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { AOXC } from "../../src/AOXC.sol";
-import { AOXCConstants } from "../../src/libraries/AOXCConstants.sol";
-import { AOXCErrors } from "../../src/libraries/AOXCErrors.sol";
+import {Test} from "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {AOXC} from "../../src/AOXC.sol";
+import {AOXCConstants} from "../../src/libraries/AOXCConstants.sol";
+import {AOXCErrors} from "../../src/libraries/AOXCErrors.sol";
 
 contract MockSentinel {
     bool public allowNext = true;
-    function setAllow(bool _allow) external { allowNext = _allow; }
-    function isAllowed(address, address) external view returns (bool) { return allowNext; }
+
+    function setAllow(bool _allow) external {
+        allowNext = _allow;
+    }
+
+    function isAllowed(address, address) external view returns (bool) {
+        return allowNext;
+    }
 }
 
 contract AOXCUnitTest is Test {
@@ -25,16 +31,14 @@ contract AOXCUnitTest is Test {
     function setUp() public {
         mockSentinel = new MockSentinel();
         AOXC logic = new AOXC();
-        
-        bytes memory initData = abi.encodeWithSelector(
-            AOXC.initializeV2.selector, address(mockSentinel), admin
-        );
+
+        bytes memory initData = abi.encodeWithSelector(AOXC.initializeV2.selector, address(mockSentinel), admin);
         aoxc = AOXC(address(new ERC1967Proxy(address(logic), initData)));
 
         vm.startPrank(admin);
         // [V2-FIX]: Unpause yetkisi GOVERNANCE_ROLE gerektirdiği için guardian'a bu rolü de veriyoruz
         aoxc.grantRole(AOXCConstants.GUARDIAN_ROLE, guardian);
-        aoxc.grantRole(AOXCConstants.GOVERNANCE_ROLE, guardian); 
+        aoxc.grantRole(AOXCConstants.GOVERNANCE_ROLE, guardian);
 
         bool success = aoxc.transfer(alice, (AOXCConstants.INITIAL_SUPPLY * 100) / 10000);
         require(success, "Setup: Initial transfer failed");
@@ -42,7 +46,7 @@ contract AOXCUnitTest is Test {
     }
 
     function _assertLowLevelRevert(bytes memory _data) internal {
-        (bool success, ) = address(aoxc).call(_data);
+        (bool success,) = address(aoxc).call(_data);
         assertTrue(!success, "Audit: Security Bypass Detected");
     }
 
@@ -69,7 +73,7 @@ contract AOXCUnitTest is Test {
     }
 
     // ... Diğer testler (Temporal, Sentinel, Whale, Mint) aynı kalabilir ...
-    
+
     function test_TemporalBreachPrevention() public {
         vm.startPrank(alice);
         assertTrue(aoxc.transfer(bob, 100));
@@ -99,7 +103,8 @@ contract AOXCUnitTest is Test {
     }
 
     function test_InflationHardcapEnforcement() public {
-        uint256 cap = (AOXCConstants.INITIAL_SUPPLY * AOXCConstants.MAX_MINT_PER_YEAR_BPS) / AOXCConstants.BPS_DENOMINATOR;
+        uint256 cap =
+            (AOXCConstants.INITIAL_SUPPLY * AOXCConstants.MAX_MINT_PER_YEAR_BPS) / AOXCConstants.BPS_DENOMINATOR;
         vm.prank(admin);
         vm.expectRevert(AOXCErrors.AOXC_InflationHardcapReached.selector);
         aoxc.mint(bob, cap + 1 wei);

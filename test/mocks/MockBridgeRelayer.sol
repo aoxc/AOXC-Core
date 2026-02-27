@@ -46,13 +46,11 @@ contract MockBridgeRelayer {
     /**
      * @dev Helper to generate a message hash for testing.
      */
-    function computeMessageHash(
-        address sender,
-        address recipient,
-        uint256 amount,
-        uint256 nonce,
-        uint256 sourceChainId
-    ) external pure returns (bytes32) {
+    function computeMessageHash(address sender, address recipient, uint256 amount, uint256 nonce, uint256 sourceChainId)
+        external
+        pure
+        returns (bytes32)
+    {
         return keccak256(abi.encode(sender, recipient, amount, nonce, sourceChainId));
     }
 }

@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.33;
 
-import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import { PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
-import { AOXCConstants } from "./libraries/AOXCConstants.sol";
-import { AOXCErrors } from "./libraries/AOXCErrors.sol";
+import {AOXCConstants} from "./libraries/AOXCConstants.sol";
+import {AOXCErrors} from "./libraries/AOXCErrors.sol";
 
 /**
  * @title AOXCXLayerSentinel
@@ -26,21 +26,20 @@ contract AOXCXLayerSentinel is
     using MessageHashUtils for bytes32;
 
     struct SentinelStorage {
-        address aiSentinelNode;      // Layer 1: Authorized AI signer
-        uint256 aiAnomalyThreshold;  // Layer 2: Risk sensitivity (BPS)
-        uint256 lastNeuralPulse;     // Layer 11: Liveness heartbeat
-        uint256 neuralNonce;         // Layer 17: Sequence for replay protection
-        uint256 circuitBreakerTime;  // Layer 10: Temporary lockdown timestamp
-        bool isSovereignSealed;      // Layer 23: Permanent lockdown flag
-        bool initialized;            // Internal: Setup guard
+        address aiSentinelNode; // Layer 1: Authorized AI signer
+        uint256 aiAnomalyThreshold; // Layer 2: Risk sensitivity (BPS)
+        uint256 lastNeuralPulse; // Layer 11: Liveness heartbeat
+        uint256 neuralNonce; // Layer 17: Sequence for replay protection
+        uint256 circuitBreakerTime; // Layer 10: Temporary lockdown timestamp
+        bool isSovereignSealed; // Layer 23: Permanent lockdown flag
+        bool initialized; // Internal: Setup guard
         mapping(address => bool) blacklisted;
         mapping(address => bool) whitelisted;
         mapping(address => uint256) reputationScore;
     }
 
     // EIP-7201 Style Storage Slot
-    bytes32 private constant STORAGE_SLOT =
-        0x8a7f909192518e932e49c95d97f9c733f5244510065090176d6c703126780c00;
+    bytes32 private constant STORAGE_SLOT = 0x8a7f909192518e932e49c95d97f9c733f5244510065090176d6c703126780c00;
 
     function _getStore() internal pure returns (SentinelStorage storage $) {
         assembly { $.slot := STORAGE_SLOT }
@@ -149,7 +148,8 @@ contract AOXCXLayerSentinel is
         $.lastNeuralPulse = block.timestamp;
 
         // Adaptive response logic
-        if (riskScore >= 1000) { // Critical: 10% Risk
+        if (riskScore >= 1000) {
+            // Critical: 10% Risk
             $.isSovereignSealed = true;
             _pause();
             emit LockdownActivated(block.timestamp, "NEURAL_CRITICAL_HALT");
