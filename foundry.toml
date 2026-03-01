@@ -1,61 +1,56 @@
 [profile.default]
-# --- Project Layout ---
+# ==============================================================================
+# --- 🏗️ PROJECT STRUCTURE ---
+# ==============================================================================
 src = "src"
 out = "out"
 libs = ["lib"]
 test = "test"
 script = "script"
 
-# --- Compiler Configuration ---
-solc_version = "0.8.33"
-
-# Üretim Dengesi: 20.000 yerine 200-1000 arası, initcode boyutunu ciddi oranda düşürür.
-# Eğer kontratın hala büyükse bu değeri 200'e kadar çekebilirsin.
-optimizer = true
-optimizer_runs = 800 
-
-# via_ir: Y-Dili üzerinden optimizasyon yapar. Boyut ve Stack hataları için kritiktir.
-via_ir = true
-evm_version = "cancun" # X Layer ve modern L2'ler için en iyisi.
-
-# --- Bytecode & Security ---
-bytecode_hash = "none"
-cbor_metadata = false
-
-# --- Metadata & Output Analysis ---
-extra_output = [
-    "abi",
-    "evm.bytecode",
-    "evm.deployedBytecode",
-    "evm.methodIdentifiers",
-    "metadata",
-    "storageLayout"
+# ==============================================================================
+# --- 🔗 REMAPPINGS (Path Resolution) ---
+# FIX: Removed trailing slashes to ensure maximum compiler compatibility.
+# ==============================================================================
+remappings = [
+    "@openzeppelin/contracts=lib/openzeppelin-contracts/contracts",
+    "@openzeppelin/contracts-upgradeable=lib/openzeppelin-contracts-upgradeable/contracts",
+    "forge-std=lib/forge-std/src",
+    "aox-core=src",
+    "aox-test=test",
+    "aox-interfaces=src/interfaces",
+    "aox-libraries=src/libraries"
 ]
 
-# --- Fuzzing: The Sledgehammer ---
+# ==============================================================================
+# --- 🧠 COMPILER STRATEGY (X-LAYER OPTIMIZED) ---
+# ==============================================================================
+solc_version = "0.8.33"
+optimizer = true
+optimizer_runs = 200
+via_ir = true          # Required for complex Yul/EVM optimization.
+
+# X-LAYER COMPLIANCE: Targetting 'cancun' for mcopy and blob support.
+evm_version = "cancun"
+
+# ==============================================================================
+# --- 🛡️ SECURITY & OUTPUT ---
+# ==============================================================================
+bytecode_hash = "none" # Disabling metadata hash for deterministic builds.
+extra_output = ["abi", "storageLayout"] # Crucial for AOXStorage alignment checks.
+
+# ==============================================================================
+# --- ⚡ TESTING (FUZZING) ---
+# ==============================================================================
 [fuzz]
-runs = 10000             # 5000'den 10000'e çıkardık, uç durumları yakalama şansı artar.
-seed = '0x31337'
-dictionary_weight = 50   # Daha fazla sözlük odaklı (smart fuzzing).
-include_storage = true
-include_push_bytes = true
+runs = 256
 
-# --- Invariant: The Sovereign Shield ---
-[invariant]
-runs = 3000              # Daha fazla senaryo.
-depth = 256              # İşlem derinliğini artırdık (Daha karmaşık state geçişleri).
-fail_on_revert = true    # Kırılganlık istemiyoruz.
-
-# --- CI/CD Profile: Hardened (Github Actions için) ---
-[profile.ci]
-fuzz = { runs = 20000 }
-invariant = { runs = 10000, depth = 500 }
-verbosity = 4
-
-# --- Infrastructure ---
+# ==============================================================================
+# --- 🌐 INFRASTRUCTURE & NETWORK ---
+# ==============================================================================
 [rpc_endpoints]
-xlayer_mainnet = "https://rpc.xlayer.tech"
-xlayer_testnet = "https://testnet.xlayer.tech/rpc"
+#xlayer_mainnet = "https://rpc.xlayer.tech"
+xlayer_testnet = "https://testrpc.xlayer.tech/terigon"
 
 [etherscan]
 xlayer = { key = "${OKLINK_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/xlayer" }

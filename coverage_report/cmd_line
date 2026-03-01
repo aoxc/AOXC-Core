@@ -1,1 +1,0 @@
-genhtml filtered_coverage.info -o coverage_report --legend --title 'AOXC Sovereign V2.6 Full Audit'
