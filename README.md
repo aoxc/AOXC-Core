@@ -1,38 +1,37 @@
-# 🏛️ AOXC-Core | The Evolution (V1 → V2 Architecture)
+# 🏛️ AOXC-Core | The Sovereign Fleet Project
 
-**AOXC-Core** has evolved from a single token contract into a multi-modular **Sovereign Fleet Protocol**. This repository tracks the transition from the deployed `AOXC_v1` to the high-integrity integrated ecosystem on **X LAYER**.
+> **"Unleashing Autonomous Efficiency on X Layer"**
 
----
+## 🌌 Project Vision
+**AOXC-Core** is an experimental, multi-modular ecosystem designed to push the boundaries of decentralized logic. Built on the high-performance foundation of **X Layer**, our architecture explores the synergy between **Autonomous Self-Repair** mechanisms and decentralized governance (**DAO**).
 
-## 🚀 The Evolution: Beyond the Token
-We are upgrading the core logic from a standalone asset to a coordinated system of specialized modules ("Sovereign Ships").
-
-### 🏗️ Fleet Architecture (Current Src Tree)
-The system is now subdivided into specialized protocol layers:
-
-* **Core Logic:** `AOXC.sol` (V2) inherits the legacy of `AOXC_v1.sol` with enhanced scalability.
-* **Governance:** `AOXC.Governor.sol` & `AOXC.Timelock.sol` — Establishing the decentralized high council.
-* **Economic Hub:** `AOXC.Stake.sol`, `AOXC.Swap.sol`, & `AOXC.Treasury.sol` — Managing liquidity and sovereign reserves.
-* **Connectivity:** `AOXC.Bridge.sol` — Enabling cross-chain mobility within the X LAYER ecosystem.
-* **Safety & Compliance:** `AOXC.SecurityRegistry.sol` — The forensic record-keeper for fleet-wide security.
+This repository tracks our ongoing evolution from a standalone asset into a coordinated "Sovereign Fleet" of specialized smart contract modules.
 
 ---
 
-## 🛠️ Technical Transformation
-This upgrade implements a **Modular Interface Standard**:
-- **Separation of Concerns:** Moving logic from monolithic contracts to specialized `interfaces/` and `abstract/` layers.
-- **Unified Standards:** Utilizing `libraries/` for centralized error handling (`AOXCErrors`) and constant management (`AOXCConstants`).
-- **Optimization:** Refined for **X LAYER** with Solidity 0.8.28+ standards.
+## 🛠️ The Tech Experiment
+We are currently utilizing the speed and scalability of **X Layer** to test:
+- **Autonomous Repair Logic:** Modular systems designed to optimize and adapt "in-flight."
+- **Sovereign Governance:** A transition towards a fully community-driven DAO structure.
+- **Fleet Architecture:** Separation of concerns across Bridge, Stake, and Treasury engines for maximum resilience.
 
 ---
 
-## 🔬 Development Roadmap
-1.  **V1 Legacy:** Maintaining the deployed `AOXC_v1.sol` state.
-2.  **Module Synthesis:** Integrating the Bridge, Stake, and Treasury engines.
-3.  **Fleet Integration:** Full-scale simulation of `AOXC.Governor` oversight.
+## 🔬 Operational Note: Under Development
+Please be advised that **AOXC-Core** is currently in its **Testnet Phase**. 
 
-> **Operational Note:** AOXC-Core is shifting from a "Token" to a "Protocol". The fleet is initializing.
+We view every deployment and simulation as a learning milestone. In the spirit of true blockchain innovation, we embrace the trial-and-error process as a necessary path to engineering excellence. Failures are merely data points, and successes are the foundation for our future Mainnet launch.
 
 ---
 
-**[AOXC-CORE] orcun@ns1:~/AOXC-Core/src$** _System Status: **EVOLVING** | Modules: **19 FILES DETECTED** | Network: **X LAYER**_
+## 🛰️ Join the Evolution
+As we continue to stress-test our modules and refine the fleet's coordination, you can follow our journey and contribute to the discussion:
+
+🔗 **Follow us on X:** [@AOXCDAO](https://x.com/AOXCDAO)
+
+---
+
+### ⚡ Powered by X LAYER
+*"Where Speed Meets Sovereignty"*
+
+**[AOXC-CORE]** _System Status: **TESTING & EVOLVING** | Network: **X LAYER TESTNET**_
